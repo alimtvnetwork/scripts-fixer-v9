@@ -13,7 +13,7 @@ set -e
 
 OWNER="alimtvnetwork"
 BASE="scripts-fixer"
-CURRENT=7   # <-- bump this when this file is copied into a new -vN repo
+CURRENT=8   # <-- bump this when this file is copied into a new -vN repo
 FOLDER="$HOME/scripts-fixer"
 REPO="https://github.com/$OWNER/$BASE-v$CURRENT.git"
 
@@ -129,12 +129,16 @@ if [ -e "$FOLDER" ]; then
 fi
 
 echo "  [>>] Cloning fresh into $FOLDER ..."
-if ! git clone "$REPO" "$FOLDER" >/dev/null 2>&1; then
-    echo "  [ERROR] Clone failed for repo: $REPO"
+git clone "$REPO" "$FOLDER" >/dev/null 2>&1
+CLONE_EXIT=$?
+
+if [ $CLONE_EXIT -ne 0 ]; then
+    echo "  [ERROR] Clone failed (exit $CLONE_EXIT) for repo: $REPO"
     echo "          Target folder: $FOLDER"
     echo "          Check your network and that the repo is public, then try again."
     exit 1
 fi
+
 if [ ! -d "$FOLDER/.git" ]; then
     echo "  [ERROR] Clone finished but .git missing in: $FOLDER"
     exit 1
