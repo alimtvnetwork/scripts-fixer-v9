@@ -225,3 +225,28 @@ exit 0
 - [ ] Run offline → falls back to self with warning
 - [ ] Probe takes < 3 seconds total when 20 versions are probed in parallel
 - [ ] Friendly log output is visible and unambiguous at every step
+
+---
+
+## Release / Version Bump Checklist
+
+When copying `install.ps1` and `install.sh` into a new `-vN` repository (e.g., `scripts-fixer-v8`), update these values before committing:
+
+### install.ps1
+- [ ] `$current = 7` → Bump to new version number (e.g., `$current = 8`)
+- [ ] Verify `$repo` URL uses the correct `-v$current` suffix
+- [ ] Test clone error handling works (check `$LASTEXITCODE` logic)
+
+### install.sh
+- [ ] `CURRENT=7` → Bump to new version number (e.g., `CURRENT=8`)
+- [ ] Verify `REPO=` URL uses the correct `-v$CURRENT` suffix  
+- [ ] Test clone error handling works (check `$?` exit code capture)
+
+### readme.md (this repo)
+- [ ] Update line 21 example from current version to new version
+- [ ] Update line 31 example from current version to new version
+
+### Critical reminders
+- **Both** bootstraps MUST be bumped — a mismatch causes redirect loops or misleading banners
+- Version numbers must be **integers**, not strings (for proper numeric comparison)
+- Never commit the old version number to a new repo — users will see confusing "v7" banners when running from v8
