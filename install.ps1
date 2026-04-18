@@ -16,7 +16,7 @@
     # ----- Configuration ----------------------------------------------------
     $owner    = "alimtvnetwork"
     $baseName = "scripts-fixer"
-    $current  = 7   # <-- bump this when this file is copied into a new -vN repo
+    $current  = 8   # <-- bump this when this file is copied into a new -vN repo
     $folder   = Join-Path $env:USERPROFILE "scripts-fixer"
     $repo     = "https://github.com/$owner/$baseName-v$current.git"
 
@@ -186,14 +186,16 @@
     }
 
     Write-Host "  [>>] Cloning fresh into $folder ..." -ForegroundColor Yellow
-    try {
-        $null = & git clone $repo $folder 2>&1
-    } catch {
-        Write-Host "  [ERROR] Clone failed: $_" -ForegroundColor Red
-        return
-    }
-    if (-not (Test-Path (Join-Path $folder ".git"))) {
-        Write-Host "  [ERROR] Clone failed (no .git in $folder). Check your network and try again." -ForegroundColor Red
+    $cloneOutput = & git clone $repo $folder 2>&1
+    $cloneExit = $LASTEXITCODE
+    if ($cloneExit -ne 0 -or -not (Test-Path (Join-Path $folder ".git"))) {
+        Write-Host "  [ERROR] Clone failed (exit $cloneExit) for repo: $repo" -ForegroundColor Red
+        Write-Host "          Target folder: $folder" -ForegroundColor Red
+        if ($cloneOutput) {
+            Write-Host "          Git output:" -ForegroundColor DarkGray
+            $cloneOutput | ForEach-Object { Write-Host "            $_" -ForegroundColor DarkGray }
+        }
+        Write-Host "          Check that the repo exists and your network is reachable." -ForegroundColor DarkGray
         return
     }
     Write-Host "  [OK] Cloned successfully." -ForegroundColor Green
