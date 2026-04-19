@@ -47,27 +47,12 @@ Doing this manually for 50+ repos is tedious. `gsa` automates it.
 Use this in shared / locked-down environments where the `*` wildcard is too
 permissive but you still want every existing repo trusted.
 
-### `list` / `safe-all --list` -- Audit mode (read-only)
-
-```powershell
-.\run.ps1 gsa --list
-.\run.ps1 git-tools list
-```
-
-- Reads `git config --global --get-all safe.directory`.
-- Sorts and dedupes the entries, then prints:
-  - Whether `*` (wildcard) is present.
-  - Every per-repo entry, numbered.
-  - Summary: `Total: N entries (W wildcard, R per-repo, D duplicates removed)`.
-- **Read-only** -- never writes to gitconfig. Safe to run anytime.
-
 ## Flags
 
 | Flag | Default | Notes |
 |------|---------|-------|
 | `--scan <path>` | (wildcard mode) | Switches to per-repo mode |
 | `--depth <n>` | `4` | Max recursion depth in scan mode |
-| `--list` | off | Read-only audit; ignores `--scan` / `--depth` |
 
 `--scan=<path>` and `--depth=<n>` (with `=`) are also accepted.
 

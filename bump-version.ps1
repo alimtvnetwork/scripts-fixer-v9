@@ -100,6 +100,37 @@ Set-Content -Path $versionFile -Value $newData -Encoding UTF8
 
 Write-Host "[ OK ] scripts/version.json: $currentVersion -> $newVersion" -ForegroundColor Green
 
+# ── Regenerate spec/script-registry-summary.md ───────────────────────────────
+# Keeps the registry summary in lock-step with scripts/registry.json +
+# per-script config.json. CI also runs this and fails on drift -- doing it
+# here means a local `bump-version.ps1` push will never trip the CI check.
+
+$generatorScript = Join-Path $PSScriptRoot "scripts" "_internal" "generate-registry-summary.cjs"
+$isGeneratorPresent = Test-Path $generatorScript
+if ($isGeneratorPresent) {
+    $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
+    $isNodeAvailable = $null -ne $nodeCmd
+    if ($isNodeAvailable) {
+        Write-Host ""
+        Write-Host "Regenerating spec/script-registry-summary.md ..." -ForegroundColor Cyan
+        & node $generatorScript | Out-Host
+        $isGeneratorOk = $LASTEXITCODE -eq 0
+        if ($isGeneratorOk) {
+            Write-Host "[ OK ] spec/script-registry-summary.md regenerated" -ForegroundColor Green
+        }
+        else {
+            Write-Host "[ WARN ] generate-registry-summary.cjs exited with code $LASTEXITCODE" -ForegroundColor Yellow
+        }
+    }
+    else {
+        Write-Host "[ SKIP ] node not found on PATH -- skipping registry summary regen." -ForegroundColor Yellow
+        Write-Host "         Run manually before tagging: node scripts/_internal/generate-registry-summary.cjs" -ForegroundColor DarkGray
+    }
+}
+else {
+    Write-Host "[ SKIP ] $generatorScript not found -- skipping registry summary regen." -ForegroundColor Yellow
+}
+
 # ── Update changelog badge in readme.md ──────────────────────────────────────
 
 $readmeFile = Join-Path $PSScriptRoot "readme.md"

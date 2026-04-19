@@ -40,7 +40,10 @@ When no parameter is provided, the script prints usage help and exits.
 5. Skip if new version equals current version
 6. Write updated version to `scripts/version.json`
 7. Update Changelog badge version in `readme.md` (if badge exists)
-8. Display confirmation
+8. **Regenerate `spec/script-registry-summary.md`** by invoking
+   `node scripts/_internal/generate-registry-summary.cjs` (skipped with a
+   warning if Node is not on PATH -- bump still succeeds)
+9. Display confirmation
 
 ---
 

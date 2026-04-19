@@ -20,11 +20,6 @@
     "scanPathMissing":   "Scan path not found: {path}",
     "scanNoRepos":       "No .git folders found under '{path}'",
     "scanSummary":       "Added {added} repos, {skipped} already present, scanned {total} .git folders in {seconds}s",
-    "gitMissing":        "git command not found in PATH -- install git first (.\\run.ps1 install git)",
-    "listHeader":        "Global gitconfig safe.directory entries",
-    "listEmpty":         "No safe.directory entries found in global gitconfig",
-    "listWildcard":      "Wildcard '*' is present (all directories trusted)",
-    "listNoWildcard":    "Wildcard '*' is NOT present",
-    "listSummary":       "Total: {total} entries ({wildcard} wildcard, {repos} per-repo, {duplicates} duplicates removed)"
+    "gitMissing":        "git command not found in PATH -- install git first (.\\run.ps1 install git)"
   }
 }

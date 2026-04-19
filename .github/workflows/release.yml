@@ -81,6 +81,54 @@ jobs:
               Write-Host "::warning::scripts/version.json ($scriptsVersion) drifted from latest.json ($latestVersion). See spec/ci-cd Issue #1."
           }
 
+      - name: Setup Node.js (for registry summary regen)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Drift check -- spec/script-registry-summary.md
+        shell: pwsh
+        run: |
+          $generator = 'scripts/_internal/generate-registry-summary.cjs'
+          $summary   = 'spec/script-registry-summary.md'
+
+          $isGeneratorPresent = Test-Path $generator
+          if (-not $isGeneratorPresent) {
+              Write-Host "::error file=$generator::Generator script missing -- cannot verify drift"
+              exit 1
+          }
+
+          $isSummaryPresent = Test-Path $summary
+          if (-not $isSummaryPresent) {
+              Write-Host "::error file=$summary::Committed registry summary missing -- run 'node $generator' locally"
+              exit 1
+          }
+
+          $beforeHash = (Get-FileHash -Path $summary -Algorithm SHA256).Hash
+          Write-Host "Committed summary SHA256 : $beforeHash"
+
+          & node $generator | Out-Host
+          $isGenOk = $LASTEXITCODE -eq 0
+          if (-not $isGenOk) {
+              Write-Host "::error::generate-registry-summary.cjs exited with code $LASTEXITCODE"
+              exit 1
+          }
+
+          $afterHash = (Get-FileHash -Path $summary -Algorithm SHA256).Hash
+          Write-Host "Regenerated summary SHA256: $afterHash"
+
+          $isInSync = $beforeHash -eq $afterHash
+          if (-not $isInSync) {
+              Write-Host "::error file=$summary::Drift detected -- $summary is out of sync with scripts/registry.json + config.json files."
+              Write-Host "::error::Run 'node $generator' locally, commit the result, then re-tag."
+              Write-Host ""
+              Write-Host "----- Diff (committed vs regenerated) -----" -ForegroundColor Yellow
+              & git --no-pager diff --no-color -- $summary
+              exit 1
+          }
+
+          Write-Host "[ OK ] $summary is in sync with registry + config sources."
+
       - name: Build release ZIP
         shell: pwsh
         run: ./release.ps1 -Force

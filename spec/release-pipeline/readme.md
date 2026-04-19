@@ -55,3 +55,25 @@
 - Missing source files are skipped with a warning (not a failure)
 - Existing ZIP for the same version is skipped unless `-Force` is used
 - The `.release/` folder should be added to `.gitignore`
+
+---
+
+## CI: Registry Summary Drift Detection (since v0.40.3)
+
+`.github/workflows/release.yml` runs an additional **drift check** step on every tag push, after the version-alignment check and before the ZIP build:
+
+1. Hashes the committed `spec/script-registry-summary.md`.
+2. Runs `node scripts/_internal/generate-registry-summary.cjs` (overwrites the file in the runner workspace only).
+3. Hashes the regenerated file and compares to the original.
+4. If hashes differ, the release **fails** with a `::error` annotation, prints the full `git diff` of what changed, and refuses to publish the GitHub Release.
+
+This guarantees `spec/script-registry-summary.md` can never silently drift from `scripts/registry.json` + per-script `config.json`. To recover from a failed drift check:
+
+```powershell
+node scripts/_internal/generate-registry-summary.cjs
+git add spec/script-registry-summary.md
+git commit -m "Refresh script-registry-summary"
+# Then re-tag.
+```
+
+`bump-version.ps1` runs the same generator locally on every version bump, so a normal release flow never trips this gate.

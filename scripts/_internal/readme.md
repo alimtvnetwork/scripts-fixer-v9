@@ -32,6 +32,15 @@ Wrote /.../spec/script-registry-summary.md
 - After editing `scripts/shared/install-keywords.json` (new keywords or modes)
 - After editing a script's `config.json` (name / desc / validModes / defaultMode change)
 
+### Auto-wired (since v0.40.3)
+
+You normally **don't need to run this manually**:
+
+- **Local**: `bump-version.ps1` invokes the generator automatically after writing the new version (skipped with a warning if Node is missing).
+- **CI**: `.github/workflows/release.yml` runs the generator on every tag push and **fails the release** if the regenerated file differs from what's committed (drift detection).
+
+Run it manually only when you've edited registry / config / keyword sources and want to preview the regenerated summary before bumping.
+
 ### What the generator pulls
 
 | Source field                       | Where it shows up                              |
