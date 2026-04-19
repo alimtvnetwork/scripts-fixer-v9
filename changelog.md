@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.39.0] -- 2026-04-19
+
+### Fixed
+
+- **Resolved unresolved Git merge conflict markers in `scripts/models/`** that broke `.\run models` with PowerShell parser errors (`The '<' operator is reserved for future use.` / `Missing file specification after redirection operator.`). Three files contained `<<<<<<< HEAD` / `=======` / `>>>>>>> lovable-sync-1776538523` blocks left over from a sync merge:
+  - `scripts/models/run.ps1` (3 conflict blocks: helper imports, mode-flag parsing, search-vs-uninstall mode bodies).
+  - `scripts/models/log-messages.json` (3 conflict blocks: help.commands, help.examples, messages).
+  - `spec/models/readme.md` (3 conflict blocks: CLI table, file layout, narrative section).
+- Both feature branches kept: **Ollama Hub `search` mode** AND **`uninstall` / `rm` / `remove` mode** now coexist. CSV-mode reserved-word list expanded to `("list","search","uninstall","remove","rm")` so a slug with one of those prefixes won't be misclassified.
+
 ## [v0.38.1] -- 2026-04-19
 
 ### Added
