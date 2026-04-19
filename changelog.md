@@ -2,6 +2,35 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.38.1] -- 2026-04-19
+
+### Added
+
+- **`install.sh` mirrors the v0.38.0 PowerShell bootstrap.** Bash now uses the same CWD-aware target resolution decision tree:
+  1. `basename "$PWD" == "scripts-fixer"` → target = `$PWD` itself (`Reason = cwd-is-target`).
+  2. `$PWD/scripts-fixer` exists → target = that subfolder (`Reason = cwd-has-sibling`).
+  3. `$PWD` is **safe** (writable, not `/`, `/usr`, `/etc`, `/var`, `/bin`, `/sbin`, `/boot`, `/sys`, `/proc`, `/System`, `/Library`, `/Applications` and not a write-probe failure) → target = `$PWD/scripts-fixer` (`Reason = cwd-safe`).
+  4. Otherwise → fallback to `$HOME/scripts-fixer` (`Reason = fallback-home`).
+- **`--dry-run` flag for `install.sh`** -- prints every `[LOCATE]` / `[CD]` / `[CLEAN]` / `[GIT]` / `[TEMP]` / `[COPY]` step the bootstrap would take, without cloning, removing, copying, or executing `run.ps1`. Skipped operations tagged `[DRYRUN] <action>  (skipped)`.
+- New helpers in `install.sh`:
+  - `test_cwd_is_safe <path>` — returns 0 only when path is writable, not protected (`/`, `/usr`, `/etc`, `/var`, `/bin`, `/sbin`, `/boot`, `/sys`, `/proc`, `/System`, `/Library`, `/Applications`), passes a `touch` write-probe.
+  - `resolve_target_folder <cwd> <fallback>` — sets `TARGET`, `REASON`, `IS_INSIDE` globals.
+- New `[LOCATE]` reason lines mirror the PowerShell ones:
+  - `cwd-is-target` → "You are INSIDE a 'scripts-fixer' folder -- cloning back into the same path."
+  - `cwd-has-sibling` → "A 'scripts-fixer' subfolder exists in CWD -- cloning into it."
+  - `cwd-safe` → "CWD is writable -- cloning into <CWD>/scripts-fixer."
+  - `fallback-home` → "CWD is a protected/system path -- falling back to \$HOME."
+
+### Changed
+
+- `install.sh` final `echo "    pwsh ./run.ps1 -d"` is now `pwsh ./run.ps1` (no `-d`), matching PowerShell behaviour so the dispatcher menu shows up rather than auto-launching script 12.
+- The hardcoded `FOLDER="$HOME/scripts-fixer"` is gone; `FOLDER` is now computed dynamically from `resolve_target_folder`. `$HOME/scripts-fixer` is retained only as the safe fallback.
+
+### Documentation
+
+- Memory entry `mem://features/install-target-resolution` updated: bash mirror is no longer a follow-up; the 4-step decision tree is now implemented in both `install.ps1` and `install.sh`.
+- Spec `spec/install-bootstrap/readme.md` § "Target Folder Resolution" expanded with a Bash sub-table listing the protected-path list and the `--dry-run` flag.
+
 ## [v0.38.0] -- 2026-04-19
 
 ### Fixed

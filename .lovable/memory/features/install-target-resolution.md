@@ -72,8 +72,18 @@ menu/help instead of being thrown straight into "Install All Dev Tools".
 - Spec: `spec/install-bootstrap/readme.md` § "Self-Relocation Clone Flow" + new
   § "Target Folder Resolution".
 
-## Bash mirror
+## Bash mirror (v0.38.1)
 
-Not yet ported — bash still uses `$HOME/scripts-fixer` unconditionally.
-Tracked as a follow-up; mirror the same 4-step decision tree using `pwd`,
-`basename`, and write-probe (`touch ... && rm`).
+Ported. `install.sh` now implements the same 4-step decision tree:
+
+- `test_cwd_is_safe <path>` — write-probe via `touch`/`rm`, plus a deny-list
+  for `/`, `/usr`, `/etc`, `/var`, `/bin`, `/sbin`, `/boot`, `/sys`, `/proc`,
+  `/System`, `/Library`, `/Applications` (covers Linux + macOS system paths).
+- `resolve_target_folder <cwd> <fallback>` — sets `TARGET`, `REASON`,
+  `IS_INSIDE` globals.
+- Reasons emitted: `cwd-is-target`, `cwd-has-sibling`, `cwd-safe`,
+  `fallback-home` (note: `fallback-home`, not `fallback-userprofile`, since
+  `$HOME` is the Unix-equivalent of `$env:USERPROFILE`).
+- `--dry-run` flag mirrors PowerShell `-DryRun` and prints
+  `[DRYRUN] <action>  (skipped)` for every mutating step.
+- Final launch is `pwsh ./run.ps1` (no `-d`), same as PowerShell.
