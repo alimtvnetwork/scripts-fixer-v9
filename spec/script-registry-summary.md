@@ -1,7 +1,7 @@
 # Script Registry Summary
 
 > Auto-generated report of all 51 registered scripts, 329 keywords, and 73 mode entries.
-> Regenerate with: `node scripts/_internal/generate-registry-summary.js`
+> Regenerate with: `node scripts/_internal/generate-registry-summary.cjs`
 
 ## Overview
 
