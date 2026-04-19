@@ -1371,6 +1371,7 @@ if ($hasCommand) {
     $isBareDoctorCommand  = $normalizedCommand -eq "doctor"
     $isBareModelsCommand  = $normalizedCommand -eq "models" -or $normalizedCommand -eq "model"
     $isBareOsCommand      = $normalizedCommand -eq "os"
+    $isBareProfileCommand = $normalizedCommand -eq "profile" -or $normalizedCommand -eq "profiles"
     $isBareScriptId = $normalizedCommand -match '^\d+$'
 
     if ($isBareOsCommand) {
@@ -1383,6 +1384,19 @@ if ($hasCommand) {
             exit 1
         }
         & $osScript @Install
+        exit $LASTEXITCODE
+    }
+
+    if ($isBareProfileCommand) {
+        Show-VersionHeader
+        $profileScript = Join-Path $RootDir "scripts\profile\run.ps1"
+        $isProfileScriptPresent = Test-Path $profileScript
+        if (-not $isProfileScriptPresent) {
+            Write-Host "  [ FAIL ] " -ForegroundColor Red -NoNewline
+            Write-Host "Profile dispatcher missing at: $profileScript"
+            exit 1
+        }
+        & $profileScript @Install
         exit $LASTEXITCODE
     }
 
