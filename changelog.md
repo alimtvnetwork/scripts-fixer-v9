@@ -2,6 +2,39 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.40.4] -- 2026-04-19
+
+### Added (`gsa --remove`, `gsa --prune`, `gsa --list` audit trio)
+
+- **`gsa --remove <path>`** -- new helper `scripts/git-tools/helpers/remove-safe.ps1`. Idempotent: snapshots `git config --global --get-all safe.directory`, checks if `<path>` is present (`[ SKIP ]` with clear reason if not), then runs `git config --global --unset-all safe.directory ^<regex-escaped-path>$` to nuke only that exact entry. Supports removing the wildcard too: `gsa --remove '*'`. Prints before/after counts and how many entries actually got removed (handles the rare case where the same path was added more than once).
+- **`gsa --prune`** -- new helper `scripts/git-tools/helpers/prune-safe.ps1`. Iterates every per-repo entry from global gitconfig, runs `Test-Path -LiteralPath` on each, classifies as alive vs orphan, then unsets every orphan with the same exact-match regex pattern as `--remove`. The wildcard `'*'` is NEVER pruned (it doesn't represent a path -- removing it is an explicit `--remove '*'` action). Lists every orphan path before deleting (always shown, even on live runs) so you can Ctrl+C if something looks wrong.
+- **`gsa --prune --dry-run`** -- preview mode. Reports the exact orphan list and counts, performs no `git config` writes. Recommended first run after a big repo cleanup.
+- **`gsa --list`** -- finally landed (was speculatively summarized in v0.40.2 but never written). New helper `scripts/git-tools/helpers/list-safe.ps1`. Read-only audit: prints every entry sorted + deduped, splits wildcard vs per-repo, reports duplicates removed, and a one-line summary.
+
+### Changed
+
+- **`scripts/git-tools/run.ps1` rewritten** to a richer dispatcher. New action keywords: `list` / `--list` / `audit` / `safe-list`, `remove` / `--remove` / `unset` / `safe-remove`, `prune` / `--prune` / `safe-prune`. Inline-flag detection: `gsa --list`, `gsa --remove <path>`, `gsa --prune --dry-run` all route correctly without needing to type the action keyword separately. Existing `gsa` (wildcard) and `gsa --scan <path>` paths unchanged.
+- **`scripts/git-tools/log-messages.json`** -- added 18 new strings covering list / remove / prune flows. All strings use `{placeholder}` substitution (the helpers do `-replace '\{path\}', $value`-style binding, no string interpolation in JSON).
+- **Help text** (`Show-GitToolsHelp` in `run.ps1`) now lists all 4 actions (safe-all, list, remove, prune) with examples and a "WHEN TO USE" matrix that includes audit/cleanup workflows.
+
+### Logging
+
+- Each new action writes to its own log file: `.logs/git-safe-list-<timestamp>.log`, `.logs/git-safe-remove-<timestamp>.log`, `.logs/git-safe-prune-<timestamp>.log`. Status codes:
+  - `--remove`: `ok` (entry removed), `skip` (path not present), `fail` (git error)
+  - `--prune`: `ok` (0 orphans or all removed), `partial` (some unset failures), `fail` (git missing)
+  - `--prune --dry-run`: always `ok` (no writes attempted)
+
+### Safety
+
+- **Wildcard guard on `--prune`**: the `'*'` entry is filtered out of the orphan candidates at classification time, so an accidental prune can never silently revoke wildcard trust.
+- **Exact-match regex anchoring on both `--remove` and `--prune`**: the value pattern passed to `git config --unset-all` is `[regex]::Escape($path)` wrapped in `^...$`. This prevents a partial-path collision from nuking unrelated entries (e.g. removing `C:/dev` would NOT also remove `C:/dev/old-repo`).
+- **Post-prune count drift check**: `--prune` snapshots before + after, computes expected delta, and prints `[ WARN ]` if git's actual delta doesn't match. Catches concurrent edits to gitconfig.
+
+### Metadata
+
+- `scripts/version.json` -- bumped to `0.40.4`.
+- `readme.md` -- Changelog badge `v0.40.3 -> v0.40.4`.
+
 ## [v0.40.3] -- 2026-04-19
 
 ### Added (registry summary auto-regen wired into release pipeline)
