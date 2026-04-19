@@ -12,9 +12,11 @@
     "skipDevDirPrompt": true,
     "fallbackDownload": {
       "enabled": true,
-      "url": "https://go.microsoft.com/fwlink/p/?LinkID=2024522",
+      "url": "https://c2rsetup.officeapps.live.com/c2r/downloadOneNote.aspx?ProductreleaseID=OneNote&platform=X64&language=en-us&Source=OO&correlationId=00000000-0000-0000-0000-000000000000",
       "fileName": "OneNoteSetup.exe",
-      "silentArgs": "/silent"
+      "silentArgs": "/silent",
+      "channel": "Microsoft 365 (Click-to-Run)",
+      "notes": "Replaces the deprecated Win10 standalone (LinkID=2024522). This URL pulls the current Microsoft 365 OneNote desktop app via Click-to-Run -- the only OneNote variant Microsoft is shipping going forward (Win10 OneNote sunset)."
     },
     "tweaks": {
       "removeTrayIcon": true,

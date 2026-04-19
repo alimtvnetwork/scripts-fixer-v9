@@ -43,7 +43,10 @@ function Install-OneNoteViaChoco {
 function Install-OneNoteFallback {
     <#
     .SYNOPSIS
-        Falls back to direct download of OneNoteSetup.exe from Microsoft.
+        Falls back to direct download of the Microsoft 365 OneNote desktop
+        installer (Click-to-Run) from Microsoft. The previous Win10 standalone
+        build (LinkID=2024522) is being sunset by Microsoft, so this URL now
+        points to the current M365 OneNote variant.
     #>
     param([Parameter(Mandatory)] $OneConfig, [Parameter(Mandatory)] $LogMessages)
     $msgs = $LogMessages.messages
