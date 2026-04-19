@@ -211,7 +211,8 @@ function Install-OneNote {
 
         Write-Log $msgs.installSuccess -Level "success"
         $finalPath = Get-OneNotePath
-        Save-InstalledRecord -Name "onenote" -Version "system" -Method (if ($chocoOk) { "chocolatey" } else { "fallback-download" })
+        $installMethod = if ($chocoOk) { "chocolatey" } else { "fallback-download" }
+        Save-InstalledRecord -Name "onenote" -Version "system" -Method $installMethod
     }
 
     # -- Post-install tweaks ------------------------------------------------
