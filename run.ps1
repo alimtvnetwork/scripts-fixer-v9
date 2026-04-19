@@ -1388,6 +1388,8 @@ if ($hasCommand) {
     $isBareModelsCommand  = $normalizedCommand -eq "models" -or $normalizedCommand -eq "model"
     $isBareOsCommand      = $normalizedCommand -eq "os"
     $isBareProfileCommand = $normalizedCommand -eq "profile" -or $normalizedCommand -eq "profiles"
+    $isBareGitToolsCommand = $normalizedCommand -eq "git-tools" -or $normalizedCommand -eq "gittools"
+    $isBareGsaCommand     = $normalizedCommand -eq "gsa" -or $normalizedCommand -eq "git-safe-all" -or $normalizedCommand -eq "gitsafeall"
     $isBareScriptId = $normalizedCommand -match '^\d+$'
 
     if ($isBareOsCommand) {
@@ -1413,6 +1415,33 @@ if ($hasCommand) {
             exit 1
         }
         & $profileScript @Install
+        exit $LASTEXITCODE
+    }
+
+    if ($isBareGitToolsCommand) {
+        Show-VersionHeader
+        $gitToolsScript = Join-Path $RootDir "scripts\git-tools\run.ps1"
+        $isGitToolsScriptPresent = Test-Path $gitToolsScript
+        if (-not $isGitToolsScriptPresent) {
+            Write-Host "  [ FAIL ] " -ForegroundColor Red -NoNewline
+            Write-Host "Git-tools dispatcher missing at: $gitToolsScript"
+            exit 1
+        }
+        & $gitToolsScript @Install
+        exit $LASTEXITCODE
+    }
+
+    if ($isBareGsaCommand) {
+        # Shortcut: route directly to safe-all action.
+        Show-VersionHeader
+        $gitToolsScript = Join-Path $RootDir "scripts\git-tools\run.ps1"
+        $isGitToolsScriptPresent = Test-Path $gitToolsScript
+        if (-not $isGitToolsScriptPresent) {
+            Write-Host "  [ FAIL ] " -ForegroundColor Red -NoNewline
+            Write-Host "Git-tools dispatcher missing at: $gitToolsScript"
+            exit 1
+        }
+        & $gitToolsScript "safe-all" @Install
         exit $LASTEXITCODE
     }
 
