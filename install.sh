@@ -8,13 +8,14 @@
 #  Spec: spec/install-bootstrap/readme.md
 #  Disable with: --no-upgrade  or  SCRIPTS_FIXER_NO_UPGRADE=1
 #  Version check: --version (shows current and latest, no install)
+#  Dry-run:       --dry-run  (prints every step but mutates nothing)
 # --------------------------------------------------------------------------
 set -e
 
 OWNER="alimtvnetwork"
 BASE="scripts-fixer"
 CURRENT=8   # <-- bump this when this file is copied into a new -vN repo
-FOLDER="$HOME/scripts-fixer"
+FALLBACK="$HOME/scripts-fixer"
 REPO="https://github.com/$OWNER/$BASE-v$CURRENT.git"
 
 PROBE_MAX="${SCRIPTS_FIXER_PROBE_MAX:-30}"
@@ -24,10 +25,12 @@ fi
 
 NO_UPGRADE=0
 VERSION_MODE=0
+DRY_RUN=0
 for arg in "$@"; do
     case "$arg" in
         --no-upgrade) NO_UPGRADE=1 ;;
         --version) VERSION_MODE=1 ;;
+        --dry-run) DRY_RUN=1 ;;
     esac
 done
 if [ "${SCRIPTS_FIXER_NO_UPGRADE:-0}" = "1" ]; then NO_UPGRADE=1; fi
@@ -35,6 +38,11 @@ if [ "${SCRIPTS_FIXER_NO_UPGRADE:-0}" = "1" ]; then NO_UPGRADE=1; fi
 echo ""
 echo "  Scripts Fixer -- Bootstrap Installer (v$CURRENT)"
 echo ""
+
+if [ "$DRY_RUN" = "1" ]; then
+    echo "  [DRYRUN] Dry-run mode enabled -- no files will be cloned, removed, or copied."
+    echo ""
+fi
 
 # -- Version check mode (discover + report, no clone) ----------------------
 if [ "$VERSION_MODE" = "1" ]; then
@@ -94,14 +102,18 @@ else
 
     if [ -n "$LATEST" ] && [ "$LATEST" -gt "$CURRENT" ]; then
         echo "  [FOUND] Newer version available: v$LATEST"
-        echo "  [REDIRECT] Switching to $BASE-v$LATEST..."
-        echo ""
-        export SCRIPTS_FIXER_REDIRECTED=1
-        NEW_URL="https://raw.githubusercontent.com/$OWNER/$BASE-v$LATEST/main/install.sh"
-        if curl -fsSL "$NEW_URL" | bash; then
-            exit 0
+        if [ "$DRY_RUN" = "1" ]; then
+            echo "  [DRYRUN] Would redirect to $BASE-v$LATEST  (skipped)"
         else
-            echo "  [WARN] Failed to run v$LATEST installer -- falling back to v$CURRENT"
+            echo "  [REDIRECT] Switching to $BASE-v$LATEST..."
+            echo ""
+            export SCRIPTS_FIXER_REDIRECTED=1
+            NEW_URL="https://raw.githubusercontent.com/$OWNER/$BASE-v$LATEST/main/install.sh"
+            if curl -fsSL "$NEW_URL" | bash; then
+                exit 0
+            else
+                echo "  [WARN] Failed to run v$LATEST installer -- falling back to v$CURRENT"
+            fi
         fi
     else
         echo "  [OK] You're on the latest (v$CURRENT). Continuing..."
@@ -116,15 +128,87 @@ if ! command -v git &>/dev/null; then
     exit 1
 fi
 
+# -- Helper: test if a directory is "safe" to clone into --------------------
+# Unsafe = a system root, /, or any path that fails a write-probe.
+test_cwd_is_safe() {
+    local p="$1"
+    [ -z "$p" ] && return 1
+
+    # Drive root / filesystem root
+    if [ "$p" = "/" ]; then
+        return 1
+    fi
+
+    # Common protected/system paths (macOS + Linux)
+    case "$p" in
+        /bin|/bin/*|/sbin|/sbin/*|/usr|/usr/*|/etc|/etc/*|/var|/var/*|/boot|/boot/*|/sys|/sys/*|/proc|/proc/*|/System|/System/*|/Library|/Library/*|/Applications|/Applications/*)
+            return 1
+            ;;
+    esac
+
+    # Write probe
+    local probe="$p/.scripts-fixer-write-probe.$$"
+    if touch "$probe" 2>/dev/null; then
+        rm -f "$probe" 2>/dev/null
+        return 0
+    fi
+    return 1
+}
+
+# -- Resolve target folder (CWD-aware with safe fallback) -------------------
+# Sets globals: TARGET, REASON, IS_INSIDE
+resolve_target_folder() {
+    local cwd="$1"
+    local fallback="$2"
+    local leaf
+    leaf="$(basename "$cwd")"
+
+    # 1. CWD's leaf folder name == 'scripts-fixer' -> target = CWD itself
+    if [ "$leaf" = "scripts-fixer" ]; then
+        TARGET="$cwd"
+        REASON="cwd-is-target"
+        IS_INSIDE=1
+        return 0
+    fi
+
+    # 2. CWD contains a 'scripts-fixer' subfolder -> target = that subfolder
+    if [ -d "$cwd/scripts-fixer" ]; then
+        TARGET="$cwd/scripts-fixer"
+        REASON="cwd-has-sibling"
+        IS_INSIDE=0
+        return 0
+    fi
+
+    # 3. CWD is "safe" -> target = <CWD>/scripts-fixer
+    if test_cwd_is_safe "$cwd"; then
+        TARGET="$cwd/scripts-fixer"
+        REASON="cwd-safe"
+        IS_INSIDE=0
+        return 0
+    fi
+
+    # 4. Otherwise -> fallback to $HOME/scripts-fixer
+    TARGET="$fallback"
+    REASON="fallback-home"
+    IS_INSIDE=0
+    return 0
+}
+
 # -- Helper: invoke git clone with stderr captured to a temp file ------------
 invoke_git_clone() {
     local repo_url="$1"
     local target_path="$2"
-    local err_file
-    err_file="$(mktemp 2>/dev/null || echo "/tmp/scripts-fixer-git-err.$$")"
 
     echo "  [GIT] Cloning from : $repo_url"
     echo "  [GIT] Cloning into : $target_path"
+
+    if [ "$DRY_RUN" = "1" ]; then
+        echo "  [DRYRUN] git clone --quiet $repo_url $target_path  (skipped)"
+        return 0
+    fi
+
+    local err_file
+    err_file="$(mktemp 2>/dev/null || echo "/tmp/scripts-fixer-git-err.$$")"
 
     git clone --quiet "$repo_url" "$target_path" 2>"$err_file"
     local exit_code=$?
@@ -146,6 +230,10 @@ remove_folder_safe() {
     if [ ! -e "$path" ]; then
         return 0
     fi
+    if [ "$DRY_RUN" = "1" ]; then
+        echo "  [DRYRUN] rm -rf $path  (skipped)"
+        return 0
+    fi
     if rm -rf "$path" 2>/dev/null; then
         return 0
     fi
@@ -154,33 +242,41 @@ remove_folder_safe() {
     return 1
 }
 
-# -- Detect self-location (CWD is target OR contains 'scripts-fixer') --------
+# -- Resolve target (CWD-aware) ----------------------------------------------
 CWD="$(pwd)"
-CWD_LEAF="$(basename "$CWD")"
-IS_INSIDE_TARGET=0
-HAS_SIBLING=0
-if [ "$CWD_LEAF" = "scripts-fixer" ]; then IS_INSIDE_TARGET=1; fi
-if [ -d "$CWD/scripts-fixer" ]; then HAS_SIBLING=1; fi
+resolve_target_folder "$CWD" "$FALLBACK"
+FOLDER="$TARGET"
 
 echo ""
 echo "  [LOCATE] Current directory : $CWD"
 echo "  [LOCATE] Target folder     : $FOLDER"
-if [ "$IS_INSIDE_TARGET" = "1" ]; then
-    echo "  [LOCATE] You are INSIDE a 'scripts-fixer' folder -- using relocation flow."
-elif [ "$HAS_SIBLING" = "1" ]; then
-    echo "  [LOCATE] A 'scripts-fixer' folder exists in CWD -- using relocation flow."
-else
-    echo "  [LOCATE] No conflict detected -- using direct clone flow."
-fi
+case "$REASON" in
+    cwd-is-target)
+        echo "  [LOCATE] You are INSIDE a 'scripts-fixer' folder -- cloning back into the same path."
+        ;;
+    cwd-has-sibling)
+        echo "  [LOCATE] A 'scripts-fixer' subfolder exists in CWD -- cloning into it."
+        ;;
+    cwd-safe)
+        echo "  [LOCATE] CWD is writable -- cloning into <CWD>/scripts-fixer."
+        ;;
+    fallback-home)
+        echo "  [LOCATE] CWD is a protected/system path -- falling back to \$HOME."
+        ;;
+esac
 
 # -- Step out of folder if we're sitting inside it ---------------------------
-if [ "$IS_INSIDE_TARGET" = "1" ]; then
+if [ "$IS_INSIDE" = "1" ]; then
     PARENT="$(dirname "$CWD")"
     echo "  [CD] Stepping out to parent  : $PARENT"
-    cd "$PARENT" || {
-        echo "  [ERROR] Could not cd to parent: $PARENT"
-        exit 1
-    }
+    if [ "$DRY_RUN" = "1" ]; then
+        echo "  [DRYRUN] cd $PARENT  (skipped)"
+    else
+        cd "$PARENT" || {
+            echo "  [ERROR] Could not cd to parent: $PARENT"
+            exit 1
+        }
+    fi
 fi
 
 # -- Try to remove existing target folder ------------------------------------
@@ -206,7 +302,7 @@ if [ "$REMOVED" = "1" ]; then
         echo "          Verify the repo exists and your network is reachable."
         exit 1
     fi
-    if [ ! -d "$FOLDER/.git" ]; then
+    if [ "$DRY_RUN" = "0" ] && [ ! -d "$FOLDER/.git" ]; then
         echo "  [ERROR] Clone finished but .git missing in: $FOLDER"
         exit 1
     fi
@@ -222,7 +318,7 @@ else
         echo "          Target : $TEMP_DIR"
         exit 1
     fi
-    if [ ! -d "$TEMP_DIR/.git" ]; then
+    if [ "$DRY_RUN" = "0" ] && [ ! -d "$TEMP_DIR/.git" ]; then
         echo "  [ERROR] Temp clone finished but .git missing in: $TEMP_DIR"
         exit 1
     fi
@@ -231,29 +327,33 @@ else
     # Copy contents over the locked folder (overwrite)
     echo "  [COPY] From : $TEMP_DIR"
     echo "  [COPY] To   : $FOLDER"
-    if [ ! -d "$FOLDER" ]; then
-        mkdir -p "$FOLDER" || {
-            echo "  [ERROR] Could not create target folder: $FOLDER"
-            exit 1
-        }
-    fi
-    # cp -a preserves attrs; trailing /. copies contents (incl. dotfiles)
-    CP_ERR="/tmp/scripts-fixer-cp-err.$$"
-    if cp -a "$TEMP_DIR/." "$FOLDER/" 2>"$CP_ERR"; then
-        echo "  [OK] Files copied into $FOLDER"
+    if [ "$DRY_RUN" = "1" ]; then
+        echo "  [DRYRUN] mkdir -p $FOLDER && cp -a $TEMP_DIR/. $FOLDER/  (skipped)"
     else
-        echo "  [ERROR] Copy from temp failed."
-        echo "          Source : $TEMP_DIR"
-        echo "          Target : $FOLDER"
-        if [ -s "$CP_ERR" ]; then
-            echo "          Reason :"
-            sed 's/^/            /' "$CP_ERR"
+        if [ ! -d "$FOLDER" ]; then
+            mkdir -p "$FOLDER" || {
+                echo "  [ERROR] Could not create target folder: $FOLDER"
+                exit 1
+            }
+        fi
+        # cp -a preserves attrs; trailing /. copies contents (incl. dotfiles)
+        CP_ERR="/tmp/scripts-fixer-cp-err.$$"
+        if cp -a "$TEMP_DIR/." "$FOLDER/" 2>"$CP_ERR"; then
+            echo "  [OK] Files copied into $FOLDER"
+        else
+            echo "  [ERROR] Copy from temp failed."
+            echo "          Source : $TEMP_DIR"
+            echo "          Target : $FOLDER"
+            if [ -s "$CP_ERR" ]; then
+                echo "          Reason :"
+                sed 's/^/            /' "$CP_ERR"
+            fi
+            rm -f "$CP_ERR" 2>/dev/null
+            echo "          Files remain in temp -- copy manually if needed: $TEMP_DIR"
+            exit 1
         fi
         rm -f "$CP_ERR" 2>/dev/null
-        echo "          Files remain in temp -- copy manually if needed: $TEMP_DIR"
-        exit 1
     fi
-    rm -f "$CP_ERR" 2>/dev/null
 
     # Best-effort cleanup of temp staging
     if remove_folder_safe "$TEMP_DIR"; then
@@ -265,8 +365,16 @@ fi
 
 echo ""
 echo "  [CD] Entering              : $FOLDER"
+if [ "$DRY_RUN" = "1" ]; then
+    echo ""
+    echo "  [DRYRUN] cd $FOLDER && pwsh ./run.ps1  (skipped)"
+    echo "  [DRYRUN] No changes were made. Re-run without --dry-run to actually install."
+    echo ""
+    exit 0
+fi
+
 echo ""
 echo "  Done! To get started:"
 echo "    cd $FOLDER"
-echo "    pwsh ./run.ps1 -d"
+echo "    pwsh ./run.ps1"
 echo ""
