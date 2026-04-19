@@ -9,7 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const ROOT = path.resolve(__dirname, '..');
+const ROOT = path.resolve(__dirname, '..', '..');
 const SCRIPTS_DIR = path.join(ROOT, 'scripts');
 const REGISTRY_PATH = path.join(SCRIPTS_DIR, 'registry.json');
 const KEYWORDS_PATH = path.join(SCRIPTS_DIR, 'shared', 'install-keywords.json');
