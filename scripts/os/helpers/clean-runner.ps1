@@ -1,0 +1,110 @@
+<#
+.SYNOPSIS
+    Single-category runner. Invoked by scripts/os/run.ps1 for any
+    `os clean-<name>` subcommand. Loads the matching helper, runs it once,
+    prints a single-row summary block, exits 0/1.
+#>
+param(
+    [Parameter(Mandatory)][string]$Category,
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$Argv = @()
+)
+
+$ErrorActionPreference = "Continue"
+Set-StrictMode -Version Latest
+
+$helpersDir    = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$scriptDir     = Split-Path -Parent $helpersDir
+$sharedDir     = Join-Path (Split-Path -Parent $scriptDir) "shared"
+$categoriesDir = Join-Path $helpersDir "clean-categories"
+
+. (Join-Path $sharedDir "logging.ps1")
+. (Join-Path $sharedDir "json-utils.ps1")
+. (Join-Path $helpersDir "_common.ps1")
+. (Join-Path $categoriesDir "_sweep.ps1")
+
+$logMessages = Import-JsonConfig (Join-Path $scriptDir "log-messages.json")
+$script:LogMessages = $logMessages
+
+Initialize-Logging -ScriptName "OS Clean: $Category"
+
+$dryRun = Test-DryRunSwitch -Argv $Argv
+$autoYes = Test-YesSwitch -Argv $Argv
+$days = Get-DaysArg -Argv $Argv -Default 30
+
+$helperPath = Join-Path $categoriesDir "$Category.ps1"
+if (-not (Test-Path -LiteralPath $helperPath)) {
+    Write-Log "Unknown clean category '$Category'. Helper missing at: ${helperPath}" -Level "fail"
+    Save-LogFile -Status "fail"
+    exit 1
+}
+
+# Admin re-launch
+$forwardArgs = @("clean-$Category") + $Argv
+$isAdminOk = Assert-Admin -ScriptPath (Join-Path $scriptDir "run.ps1") `
+                          -ForwardArgs $forwardArgs -LogMessages $logMessages
+if (-not $isAdminOk) {
+    Save-LogFile -Status "fail"
+    exit 1
+}
+
+$mode = if ($dryRun) { "DRY-RUN" } else { "LIVE" }
+Write-Host ""
+Write-Host "  os clean-$Category -- $mode" -ForegroundColor Cyan
+Write-Host "  =========================================" -ForegroundColor DarkGray
+Write-Host ""
+
+$r = $null
+try {
+    $r = & $helperPath -DryRun:$dryRun -Yes:$autoYes -Days $days
+    if ($r -is [array]) {
+        $r = $r | Where-Object { $_ -is [hashtable] -or $_ -is [System.Collections.Specialized.OrderedDictionary] } | Select-Object -Last 1
+    }
+} catch {
+    Write-Log "Category '$Category' threw at ${helperPath}: $($_.Exception.Message)" -Level "fail"
+    Save-LogFile -Status "fail"
+    exit 1
+}
+
+if ($null -eq $r) {
+    Write-Log "Category '$Category' returned null" -Level "fail"
+    Save-LogFile -Status "fail"
+    exit 1
+}
+
+# Single-row summary
+Write-Host ""
+$statusColor = switch ($r.Status) {
+    "ok"      { "Green" }
+    "warn"    { "Yellow" }
+    "skip"    { "DarkGray" }
+    "fail"    { "Red" }
+    "dry-run" { "Cyan" }
+    default   { "Gray" }
+}
+if ($dryRun) {
+    Write-Host ("    [{0}] {1,-22} would-items: {2,5}  would-free: {3,8} MB  [{4}]" `
+        -f $r.Bucket, $r.Category, $r.WouldCount, ([Math]::Round($r.WouldBytes/1MB,2)), $r.Status.ToUpper()) -ForegroundColor $statusColor
+} else {
+    Write-Host ("    [{0}] {1,-22} items: {2,5}  freed: {3,8} MB  locked: {4,4}  [{5}]" `
+        -f $r.Bucket, $r.Category, $r.Count, ([Math]::Round($r.Bytes/1MB,2)), $r.Locked, $r.Status.ToUpper()) -ForegroundColor $statusColor
+}
+
+if ($r.Notes -and $r.Notes.Count -gt 0) {
+    foreach ($n in $r.Notes) {
+        Write-Host ("        - {0}" -f $n) -ForegroundColor DarkGray
+    }
+}
+
+if ($r.LockedDetails -and $r.LockedDetails.Count -gt 0) {
+    Write-Host ""
+    Write-Host "  [ LOCKED FILES ]" -ForegroundColor Yellow
+    foreach ($lk in $r.LockedDetails | Select-Object -First 50) {
+        Write-Host ("    {0}" -f $lk.Path) -ForegroundColor DarkYellow
+        Write-Host ("        reason: {0}" -f $lk.Reason) -ForegroundColor DarkGray
+    }
+}
+
+Write-Host ""
+Save-LogFile -Status $r.Status
+exit 0
