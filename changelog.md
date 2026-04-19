@@ -2,6 +2,91 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.41.0] -- 2026-04-19
+
+### Added (OS Clean Expansion -- 32 categories, all aggregate, consent-gated)
+
+- **Catalog**: 32 new flat top-level subcommands `os clean-<name>` across 7 buckets (System, User shell, Graphics/Web, Browsers, Apps, Dev tools, Media). See `os --help` for the full inline grouped list.
+- **Aggregate `os clean`**: rewritten as a pure orchestrator that walks the catalog in order, calls each helper, accumulates results, prints per-category summary table + grand total + deduped LOCKED FILES section. Replaces the legacy 9-step flow.
+- **`scripts/os/helpers/clean-categories/`**: 32 self-contained helper scripts, each exporting the standard result hashtable contract documented in `_sweep.ps1`. Every helper: own try/catch, own locked-file accumulator, own dry-run support, own consent gate when destructive.
+- **`_sweep.ps1`**: shared primitives (`New-CleanResult`, `Invoke-PathSweep`, `Get-LockReason`, `Resolve-CleanPath`, `Test-DryRunSwitch`, `Test-YesSwitch`, `Get-DaysArg`, `Stop-WindowsService` / `Start-WindowsService`, `Set-CleanResultStatus`).
+- **`clean-runner.ps1`**: single-category dispatcher that handles admin re-launch + single-row summary for `os clean-<name>`.
+
+### Consent framework
+
+- **`.resolved/os-clean-consent.json`**: persisted typed-yes consent. Schema: `{ version, consentedAt, consentedFor: [string], machineName }`.
+- **Destructive categories** (require typed `yes`, never bare Enter): `recycle`, `ms-search`, `obs-recordings`, `windows-update-old`. First run prompts with the full side-effect summary; subsequent runs skip.
+- **`--yes`**: auto-consents the destructive category for this run AND writes it to the consent file for future runs.
+- **`--dry-run`**: NEVER writes the consent file; lets users explore safely.
+
+### Flags on `os clean` (aggregate)
+
+- `--yes` -- skip both first-run prompt and per-category consent prompts (still writes consent file).
+- `--dry-run` -- report-only mode. Reports `would-items` + `would-free MB`, skips all writes/services/DISM.
+- `--skip <a,b,c>` -- skip listed categories.
+- `--only <a,b,c>` -- run only listed categories.
+- `--bucket <A..G>` -- run only one bucket (e.g. `D` for browsers).
+- `--days <N>` -- override age threshold for media subcommands (default 30, used by `obs-recordings`).
+
+### Per-category subcommands
+
+Every `os clean-<name>` accepts the same `--dry-run`, `--yes`, `--days <N>` flags. Standalone invocations get their own `.logs/os-clean-<category>-<timestamp>.log`.
+
+### Browser cleaners (Bucket D)
+
+- Wipe **cache only**: `Cache`, `Code Cache`, `GPUCache`, `Service Worker\CacheStorage`, `Service Worker\ScriptCache`.
+- **NEVER** touch cookies, history, bookmarks, saved passwords, login state.
+- All Chromium profiles auto-discovered (`Default`, `Profile 1..N`, `Guest Profile`).
+- Firefox: cache2, startupCache, OfflineCache, thumbnails -- both `%LOCALAPPDATA%` and `%APPDATA%` profile roots checked.
+
+### App cleaners (Bucket E)
+
+- **Clipchamp**: `Packages\Clipchamp.Clipchamp_*\LocalCache + TempState + AC\INetCache`. Drafts unaffected.
+- **VLC**: `art\*` and `ml.xspf|ml.db`. NOT `vlcrc` (settings).
+- **Discord**: `Cache + Code Cache + GPUCache`. NOT `Local Storage` (login state).
+- **Spotify**: `Storage + Browser\Cache + Data`. NOT offline downloads.
+
+### Dev tool cleaners (Bucket F)
+
+- **VS Code**: `Cache + CachedData + Code Cache + GPUCache + logs + CachedExtensionVSIXs + Crashpad\reports`. Workspaces/extensions safe.
+- **npm**: `npm cache clean --force` with cache-dir auto-discovery for accurate byte reporting.
+- **pip**: `pip cache purge` with `pip cache dir` discovery.
+- **Docker**: `docker system prune -f`. Daemon-running probe; skipped if Docker not running.
+
+### Media cleaners (Bucket G)
+
+- **OBS recordings**: `~/Videos\*.mkv|*.mp4` older than `--days N` (default 30). Double-gated (consent + age).
+- **Steam shader**: enumerates every `libraryfolders.vdf` library, wipes each `steamapps\shadercache`.
+- **Windows Update old**: `dism.exe /online /Cleanup-Image /StartComponentCleanup /ResetBase`. Removes ability to uninstall past updates.
+
+### CODE RED compliance
+
+Every category helper logs the exact failing path + reason on every Remove-Item / service-stop / DISM failure. Locked files surface in both the per-category log and the aggregate `[ LOCKED FILES ]` section, deduped by path.
+
+### Files
+
+- New: `scripts/os/helpers/clean-runner.ps1` (single-category runner).
+- New: `scripts/os/helpers/clean-categories/_sweep.ps1` (shared primitives).
+- New: 32 helpers in `scripts/os/helpers/clean-categories/<name>.ps1`.
+- Rewritten: `scripts/os/helpers/clean.ps1` (pure orchestrator).
+- Rewritten: `scripts/os/run.ps1` (dynamic `clean-<name>` dispatch + grouped help).
+- Updated: `scripts/version.json` (0.40.5 -> 0.41.0).
+- Updated: `readme.md` Changelog badge.
+- Spec already in place at `spec/os-clean-expansion/readme.md` (sign-off this build).
+
+### Test plan baseline
+
+| # | Test                                                     | Expected                                                  |
+|---|----------------------------------------------------------|-----------------------------------------------------------|
+| 1 | `.\run.ps1 os clean --dry-run`                           | 32 categories reported, 0 deletions, 0 consent file       |
+| 2 | `.\run.ps1 os clean-chrome --dry-run`                    | Single-category report, all profiles enumerated           |
+| 3 | `.\run.ps1 os clean-recycle` first run                   | Typed-yes prompt; declines on bare Enter                  |
+| 4 | After test 3 succeeds: re-run `os clean-recycle`         | No prompt (consent persisted)                             |
+| 5 | `.\run.ps1 os clean --skip recycle,ms-search,obs-recordings,windows-update-old` | 28 categories, no destructive prompts |
+| 6 | `.\run.ps1 os clean --bucket D`                          | Only Chrome+Edge+Firefox+Brave run                        |
+| 7 | `.\run.ps1 os clean-obs-recordings --days 7 --dry-run`   | Lists every recording > 7 days old, no deletes            |
+| 8 | `.\run.ps1 os --help`                                    | Shows all 32 subcommands grouped by bucket inline         |
+
 ## [v0.40.5] -- 2026-04-19
 
 ### Added (config.json schema linter -- CI quality gate)
