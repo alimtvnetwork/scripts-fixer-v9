@@ -261,9 +261,7 @@ function Show-RootHelp {
     Write-Host "    $(".\run.ps1 models <ids>".PadRight($col))" -NoNewline; Write-Host "Direct install: CSV of model ids (auto-routes per backend)" -ForegroundColor DarkGray
     Write-Host "    $(".\run.ps1 models list".PadRight($col))" -NoNewline; Write-Host "List all models from both catalogs" -ForegroundColor DarkGray
     Write-Host "    $(".\run.ps1 -M".PadRight($col))" -NoNewline; Write-Host "Shortcut for 'models'" -ForegroundColor DarkGray
-    Write-Host "    $(".\run.ps1 os clean".PadRight($col))" -NoNewline; Write-Host "Full housekeeping (temp + WU cache + choco cache + logs)" -ForegroundColor DarkGray
-    Write-Host "    $(".\run.ps1 os temp-clean".PadRight($col))" -NoNewline; Write-Host "Temp dirs only (independent path; safe + fast subset of clean)" -ForegroundColor DarkGray
-    Write-Host "    $(".\run.ps1 os <action>".PadRight($col))" -NoNewline; Write-Host "Other OS actions: hib-off, flp, add-user ('os help' for all)" -ForegroundColor DarkGray
+    Write-Host "    $(".\run.ps1 os <action>".PadRight($col))" -NoNewline; Write-Host "OS housekeeping: clean, temp-clean, hib-off, flp, add-user ('os help')" -ForegroundColor DarkGray
     Write-Host "    $(".\run.ps1 profile <name>".PadRight($col))" -NoNewline; Write-Host "Run a profile recipe (minimal, base, advance, small-dev, ...)" -ForegroundColor DarkGray
     Write-Host "    $(".\run.ps1 gsa".PadRight($col))" -NoNewline; Write-Host "git safe.directory='*' (wildcard, idempotent)" -ForegroundColor DarkGray
     Write-Host "    $(".\run.ps1 gsa --scan <path>".PadRight($col))" -NoNewline; Write-Host "Add each .git repo under <path> individually" -ForegroundColor DarkGray

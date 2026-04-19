@@ -2,24 +2,46 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.40.1] -- 2026-04-19
+
+### Added (`spec/script-registry-summary.md` auto-regen)
+
+- **New maintenance script** `scripts/_internal/generate-registry-summary.cjs` -- regenerates `spec/script-registry-summary.md` from the live data in `scripts/registry.json` + each `scripts/<folder>/config.json` + `scripts/shared/install-keywords.json`. Zero deps, plain Node `fs`. Run with `node scripts/_internal/generate-registry-summary.cjs`.
+- **`scripts/_internal/readme.md`** -- documents what the generator pulls from each source, when to re-run it, and why it's `.cjs` (the repo is ESM by default).
+
+### Changed
+
+- **`spec/script-registry-summary.md` regenerated** -- was stuck on the v0.30-era snapshot (36 scripts, 114 keywords, 17 mode entries). Current truth: **51 scripts, 329 keywords, 73 mode entries, 47 combo keywords, 25 subcommand keywords (10 groups: os:* and profile:*)**.
+- The Overview table now lists every registered script ID 01-51 with accurate keyword + mode counts.
+- The Detailed Script Reference now uses the `name` field from each `config.json` as the heading where present (e.g. "Script 16: phpMyAdmin", "Script 36: OBS Studio") and falls back to the folder name otherwise. `chocoPackage` / `chocoPackageName` is surfaced when set.
+- New "Subcommand Keywords" section captures the `os:*` / `profile:*` keyword targets that route to dispatchers instead of numeric script IDs (previously hidden -- they were silently dropped from old summaries).
+- Statistics block now distinguishes "Total keywords (numeric-target)" from "Subcommand keywords" so the two count categories don't conflict.
+- Header note tells maintainers exactly how to regenerate.
+- **Readme badge** Scripts count `46 -> 51`, Changelog `v0.32.0 -> v0.40.1`.
+
+### Notes
+
+- The generator is **idempotent** -- re-running it on unchanged inputs produces byte-identical output.
+- Future schema additions (e.g. a `tags` field on `config.json`) only need a one-line patch to `scrapeScriptMeta()` to flow into the report.
+- This is a maintenance-only release -- no runtime behavior change.
+
 ## [v0.40.0] -- 2026-04-19  *(2025-batch capstone release)*
 
 ### Added (`07-install-git` default gitconfig refresh -- Group E)
 
 - **`safe.directory='*'` baked into the default gitconfig** -- new `gitConfig.safeDirectoryWildcard` block in `scripts/07-install-git/config.json`. Same effect as `.\run.ps1 gsa` (Group C), but applied automatically the first time you install git via `.\run.ps1 install git`. Idempotent: re-reads `git config --global --get-all safe.directory`, only adds `*` if not already present. New installs no longer hit "fatal: detected dubious ownership" warnings out of the box.
 - **Git LFS filters re-asserted globally** -- new `gitConfig.lfsFilters` block. Sets `filter.lfs.clean`, `filter.lfs.smudge`, `filter.lfs.process`, `filter.lfs.required=true`. Normally `git lfs install` already does this, but the explicit re-assertion guarantees the filters survive even if the LFS install step was skipped, the config got wiped, or git-lfs was removed and reinstalled. Per-key idempotent.
-- **GitHub + GitLab SSH URL rewrites** -- new `gitConfig.urlRewrites` block with two default rules: `url.git@github.com:.insteadOf = https://github.com/` and `url.git@gitlab.com:.insteadOf = https://gitlab.com/`. Cloning an HTTPS URL pasted from a browser silently uses your SSH key instead of prompting for a password / PAT. Each rule is independently idempotent (`git config --get-all` lookup before append). Disable the whole block by setting `gitConfig.urlRewrites.enabled = false`, or remove individual rules from the array.
+- **GitHub + GitLab SSH URL rewrites** -- new `gitConfig.urlRewrites` block with two default rules: `url.git@github.com:.insteadOf = https://github.com/` and `url.git@gitlab.com:.insteadOf = https://gitlab.com/`. Cloning an HTTPS URL pasted from a browser silently uses your SSH key instead of prompting for a password / PAT. Each rule is independently idempotent. Disable the whole block via `gitConfig.urlRewrites.enabled = false`, or remove individual rules from the array.
 
 ### Changed (root help -- Group E polish)
 
-- **Root help text** (`Show-RootHelp` in `run.ps1`) now lists `os clean`, `os temp-clean`, and the rest of the `os` subcommands as separate lines so users discover the new `temp-clean` independent code path immediately. The umbrella `os <action>` line stays for the lesser-used actions (`hib-off`, `flp`, `add-user`).
-- **Readme badges** bumped: Scripts count `46 -> 51`, Changelog version `v0.32.0 -> v0.40.0`. License badge already MIT (added in v0.39.6).
+- **Root help text** (`Show-RootHelp` in `run.ps1`) now lists `os clean`, `os temp-clean`, and the rest of the `os` subcommands as separate lines so users discover the new `temp-clean` independent code path immediately.
+- All three new `gitConfig` blocks (`safeDirectoryWildcard`, `lfsFilters`, `urlRewrites`) are opt-out via `enabled: false`.
 
 ### Notes
 
-- This release closes the **2025-batch** scope (specs in `spec/2025-batch/`): Ubuntu font, ConEmu, WhatsApp, OS clean, OneNote, fix-long-path, add-user, Lightshot, hibernate-off, PSReadLine, profiles, **and now `git-safe-all` + the gitconfig refresh**.
-- Going forward, the `gsa` subcommand (added in v0.39.7) is most useful for **existing machines** where you want to add per-repo safe.directory entries for repos that pre-date this gitconfig template. Fresh installs get the wildcard automatically.
-- All three new gitConfig blocks (`safeDirectoryWildcard`, `lfsFilters`, `urlRewrites`) are opt-out via `enabled: false` -- nothing is forced on users who want a stricter setup.
+- This release closed the **2025-batch** scope (specs in `spec/2025-batch/`): Ubuntu font, ConEmu, WhatsApp, OS clean, OneNote, fix-long-path, add-user, Lightshot, hibernate-off, PSReadLine, profiles, **plus `git-safe-all` + the gitconfig refresh**.
+- The `gsa` subcommand (added in v0.39.7) is most useful for **existing machines** where you want to add per-repo safe.directory entries for repos that pre-date this gitconfig template. Fresh installs get the wildcard automatically.
 
 ## [v0.39.7] -- 2026-04-19
 
