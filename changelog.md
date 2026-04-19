@@ -2,6 +2,54 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.39.4] -- 2026-04-19
+
+### Added (2025 Batch -- Group D: `profile` dispatcher + 6 install profiles + new keyword convention)
+
+- **New dispatcher `scripts/profile/run.ps1`** -- declarative multi-step install pipelines. Subcommands:
+  - `profile list` -- print all profiles + step counts
+  - `profile <name>` -- expand recursively, print step preview, execute, emit summary table with status + elapsed per step
+  - `profile <name> --dry-run` -- show the expanded step list, do not execute (per-step `[DRYRUN]` lines)
+  - `profile <name> -Yes` -- skip confirmation prompts inside steps (e.g. SSH keygen passphrase, default user.name)
+  - `profile help` -- usage
+- **6 profile recipes** in `scripts/profile/config.json` (declarative steps, no PowerShell needed to add a new one):
+  1. **minimal** -- choco + git + 7zip + chrome (4 steps; for fresh-Windows bootstrap with nothing extra)
+  2. **base** -- choco + git + VLC + 7zip + WinRAR + ubuntu font + XMind + Notepad++ (install+settings) + Chrome + ConEmu (install+settings) + `os hib-off` + PSReadLine latest (12 steps)
+  3. **git-compact** -- git + GitHub Desktop + ed25519 SSH key (auto-detect / generate) + default `$HOME\GitHub` dir + opinionated git config (LFS filters, `safe.directory=*`, GitLab SSH rewrite) (5 steps)
+  4. **advance** -- `base` + `git-compact` + WordWeb + Beyond Compare + OBS (install+settings) + WhatsApp + VS Code + VS Code settings sync (8 own steps + 17 from recursion = 25 total)
+  5. **cpp-dx** -- vcredist-all + DirectX runtime + DirectX SDK (3 steps)
+  6. **small-dev** -- `advance` + Go + Python + Node.js + pnpm (4 own + 25 from advance = 29 total)
+- **Recursive `{ kind: "profile", name: "<other>" }` expansion** -- profiles can include other profiles. Cycle detection via a visited-set + chain-tracking; cyclic references abort with a CODE RED log line listing the full chain.
+- **5 step kinds supported by the executor** (`scripts/profile/helpers/executor.ps1`):
+  - `script` -- runs `scripts/<id>-*/run.ps1` via the registry, with optional mode env-var injection (NPP_MODE, OBS_MODE, CONEMU_MODE, etc.)
+  - `choco` -- direct `choco install <pkg> -y --no-progress`; auto-skips with `[SKIP]` if choco is missing (so a `minimal` profile can install choco first then proceed)
+  - `subcommand` -- dispatches via the root `run.ps1` (e.g. `os hib-off`, `git-tools gsa`)
+  - `inline` -- calls a function in `scripts/profile/helpers/inline.ps1` (e.g. `Install-PSReadLineLatest`, `Setup-SshKey`, `Setup-GitHubDir`, `Apply-DefaultGitConfig`)
+  - `profile` -- recursive expansion (handled by `scripts/profile/helpers/expand.ps1`)
+- **Inline helpers** (`scripts/profile/helpers/inline.ps1`):
+  - `Install-PSReadLineLatest` -- trusts PSGallery, `Install-Module PSReadLine -Force -SkipPublisherCheck -AcceptLicense -Scope CurrentUser`
+  - `Setup-SshKey` -- skips if `~/.ssh/id_ed25519` already exists; otherwise reads `git config user.email` for the comment, runs `ssh-keygen -t ed25519`, prints the public key + copies to clipboard
+  - `Setup-GitHubDir` -- ensures `$HOME\GitHub` exists, prints how to add it to GitHub Desktop manually (no public CLI exists for GHD)
+  - `Apply-DefaultGitConfig` -- preserves existing `user.name` / `user.email` if set; otherwise prompts (defaults to "Alim Ul Karim"). Always sets LFS filters (clean / smudge / process / required), `safe.directory=*`, and the `https://gitlab.com/` -> `ssh://git@gitlab.com/` `insteadOf` rewrite.
+- **Per-step status**: each step is wrapped in a `Stopwatch` + try/catch -- pass/fail/skip plus elapsed seconds. Final summary table shows the full result; exit code is 0 only when every step succeeded (otherwise `partial` + non-zero exit).
+- **PATH refresh between steps** so newly installed tools are discoverable to subsequent steps without restarting the shell.
+
+### Changed (root dispatcher + keyword resolver)
+
+- **`run.ps1`** new bare command: `.\run.ps1 profile <name|list|help|<name> --dry-run>` forwards all remaining args to `scripts/profile/run.ps1`.
+- **`Resolve-InstallKeywords` (in `run.ps1`)** now handles two value shapes in `install-keywords.json`:
+  - **Numeric IDs** (the existing convention): `"vscode": [1]` -> entry `{ Kind: script, Id: 1 }`
+  - **String subcommand entries** (NEW): `"profile-minimal": ["profile:minimal"]` and `"clean": ["os:clean"]` -> entry `{ Kind: subcommand, Dispatcher: "profile", Action: "minimal" }`. The `<dispatcher>:<action>` regex is the discriminator; everything before the colon is treated as a folder under `scripts/`.
+- **Install execution loop** now branches on entry kind: subcommand entries are routed to `scripts/<dispatcher>/run.ps1` with `Action` split on whitespace (so `os:add-user alice MyP@ss123` works as a single keyword spec). Subcommand entries are sorted to the END so script-ID installs run first.
+- **`scripts/shared/install-keywords.json`** -- added 11 new profile keywords (`profile-minimal`, `profile-base`, `profile-git`, `profile-git-compact`, `profile-advance`, `profile-advanced`, `profile-cpp-dx`, `profile-cppdx`, `profile-small-dev`, `profile-smalldev`) plus their `["profile:<name>"]` array values. The previously-staged Group B `os:` keywords now actually function as installable shortcuts (the resolver was extended to parse them).
+- **CONEMU_MODE** added to the `modeEnvVars` map in the install execution loop (was missing from the v0.39.1 ConEmu wiring; profiles now honor `mode: install+settings` for ConEmu).
+
+### Spec & docs
+
+- Implemented per `spec/2025-batch/12-profiles.md` (which was updated last session to include the 6th `minimal` profile). All 6 declarative profiles + recursive expansion + cycle detection + 5 step kinds shipped.
+- The `profile:` keyword convention agreed in the previous confirmation round is now wired end-to-end: keyword JSON -> resolver -> dispatcher -> executor.
+- Inline functions are isolated in `scripts/profile/helpers/inline.ps1` so adding a new one only requires defining a function with `(-RootDir, -AutoYes, -Step)` signature.
+
 ## [v0.39.2] -- 2026-04-19
 
 ### Added (2025 Batch -- Group B: `os` subcommand dispatcher)

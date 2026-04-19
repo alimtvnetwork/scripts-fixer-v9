@@ -252,7 +252,17 @@
     "os-add-user":       ["os:add-user"],
     "add-user":          ["os:add-user"],
     "adduser":           ["os:add-user"],
-    "new-user":          ["os:add-user"]
+    "new-user":          ["os:add-user"],
+    "profile-minimal":   ["profile:minimal"],
+    "profile-base":      ["profile:base"],
+    "profile-git":       ["profile:git-compact"],
+    "profile-git-compact": ["profile:git-compact"],
+    "profile-advance":   ["profile:advance"],
+    "profile-advanced":  ["profile:advance"],
+    "profile-cpp-dx":    ["profile:cpp-dx"],
+    "profile-cppdx":     ["profile:cpp-dx"],
+    "profile-small-dev": ["profile:small-dev"],
+    "profile-smalldev":  ["profile:small-dev"]
   },
   "modes": {
     "notepad++":         { "33": "install+settings" },

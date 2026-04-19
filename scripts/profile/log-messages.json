@@ -1,0 +1,44 @@
+{
+  "scriptName": "Profile Dispatcher",
+  "description": "Run an opinionated multi-step install profile (minimal, base, git-compact, advance, cpp-dx, small-dev).",
+  "status": {
+    "ok":   "[  OK  ]",
+    "fail": "[ FAIL ]",
+    "info": "[ INFO ]",
+    "warn": "[ WARN ]",
+    "skip": "[ SKIP ]"
+  },
+  "messages": {
+    "profileNotFound":   "Profile '{name}' is not defined in config.json. Run '.\\run.ps1 profile list' to see available profiles.",
+    "configMissing":     "Profile config not found at: {path}",
+    "configParseFailed": "Failed to parse profile config at {path}: {error}",
+    "cycleDetected":     "Cycle detected in profile expansion: {chain}. Aborting (CODE RED).",
+    "expandStart":       "Expanding profile '{name}' ({stepCount} step(s) before recursion)...",
+    "expandDone":        "Profile '{name}' expanded to {total} concrete step(s).",
+    "stepStart":         "Step {n}/{total}: [{kind}] {label}",
+    "stepOk":            "Step {n}/{total} OK ({elapsed}s) -- {label}",
+    "stepFail":          "Step {n}/{total} FAIL ({elapsed}s) -- {label}: {error}",
+    "stepSkip":          "Step {n}/{total} SKIP -- {label}: {reason}",
+    "stepDryRun":        "[DRYRUN] Step {n}/{total} -- [{kind}] {label} (skipped)",
+    "summaryHeader":     "Profile '{name}' Summary",
+    "summaryRow":        "  {n,3}  {kind,-12} {label,-40} {status,-6} {elapsed}s",
+    "summaryTotalsOk":   "All {total} step(s) succeeded in {elapsed}s.",
+    "summaryTotalsFail": "{failed} of {total} step(s) failed (in {elapsed}s). See details above.",
+    "noKindHandler":     "Unknown step kind '{kind}'. Skipping. (Step {n}: {label})",
+    "missingScript":     "Script id={id} not found in registry. Cannot run step {n}: {label}",
+    "missingChoco":      "Chocolatey is not installed. Cannot run choco step: '{package}'. Install choco first or run 'profile minimal' which installs it.",
+    "subcommandFailed":  "Subcommand '{path}' failed with exit code {code}.",
+    "inlineMissing":     "Inline function '{function}' is not defined in scripts/profile/helpers/inline.ps1.",
+    "inlineFailed":      "Inline function '{function}' threw: {error}"
+  },
+  "help": {
+    "header": "Profile -- run an opinionated multi-step install pipeline",
+    "usage": [
+      ".\\run.ps1 profile list",
+      ".\\run.ps1 profile <name>",
+      ".\\run.ps1 profile <name> --dry-run",
+      ".\\run.ps1 profile <name> -Yes",
+      ".\\run.ps1 install profile-<name>"
+    ]
+  }
+}

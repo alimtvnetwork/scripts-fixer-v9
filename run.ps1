@@ -739,6 +739,16 @@ function Resolve-InstallKeywords {
         # Determine mode override for this token (if any)
         $tokenModes = $modesMap.$token
         foreach ($id in $ids) {
+            # ── String entry (subcommand convention) ───────────────────
+            # e.g. "os:clean", "profile:base"  -- routes to scripts/<dispatcher>/run.ps1 <action> <args>
+            $isStringEntry = ($id -is [string]) -and ($id -match '^([a-z]+):(.+)$')
+            if ($isStringEntry) {
+                $dispatcher = $Matches[1]
+                $action     = $Matches[2]
+                $entries.Add(@{ Kind = "subcommand"; Dispatcher = $dispatcher; Action = $action; Token = $token })
+                continue
+            }
+
             $mode = $null
             if ($null -ne $tokenModes) {
                 $mode = $tokenModes."$id"
@@ -747,6 +757,8 @@ function Resolve-InstallKeywords {
             # Check if an entry with the same ID already exists
             $existingEntry = $null
             foreach ($e in $entries) {
+                $isScriptEntry = ($e.Kind -eq $null) -or ($e.Kind -eq "script")
+                if (-not $isScriptEntry) { continue }
                 $isSameId = $e.Id -eq [int]$id
                 if ($isSameId) {
                     # Same ID: check if mode is identical or mergeable
@@ -762,7 +774,7 @@ function Resolve-InstallKeywords {
 
             $isNewEntry = $null -eq $existingEntry
             if ($isNewEntry) {
-                $entries.Add(@{ Id = [int]$id; Mode = $mode })
+                $entries.Add(@{ Kind = "script"; Id = [int]$id; Mode = $mode })
             } else {
                 # Merge: keep the higher-priority mode (only for install+settings / install-only / settings-only)
                 $existingPri = if ($null -ne $existingEntry.Mode -and $modePriority.ContainsKey($existingEntry.Mode)) { $modePriority[$existingEntry.Mode] } else { 0 }
@@ -781,8 +793,12 @@ function Resolve-InstallKeywords {
         return $null
     }
 
-    # Sort by ID, preserving order for duplicate IDs
-    $sorted = $entries | Sort-Object { [int]$_.Id }
+    # Sort: subcommands keep their original order at the END (run after script installs).
+    # Script entries are sorted by ID. We split, sort scripts, then concat.
+    $scriptEntries     = @($entries | Where-Object { $_.Kind -eq "script" -or $null -eq $_.Kind })
+    $subcommandEntries = @($entries | Where-Object { $_.Kind -eq "subcommand" })
+    $sortedScripts     = $scriptEntries | Sort-Object { [int]$_.Id }
+    $sorted            = @($sortedScripts) + @($subcommandEntries)
     return $sorted
 }
 
@@ -1371,6 +1387,7 @@ if ($hasCommand) {
     $isBareDoctorCommand  = $normalizedCommand -eq "doctor"
     $isBareModelsCommand  = $normalizedCommand -eq "models" -or $normalizedCommand -eq "model"
     $isBareOsCommand      = $normalizedCommand -eq "os"
+    $isBareProfileCommand = $normalizedCommand -eq "profile" -or $normalizedCommand -eq "profiles"
     $isBareScriptId = $normalizedCommand -match '^\d+$'
 
     if ($isBareOsCommand) {
@@ -1383,6 +1400,19 @@ if ($hasCommand) {
             exit 1
         }
         & $osScript @Install
+        exit $LASTEXITCODE
+    }
+
+    if ($isBareProfileCommand) {
+        Show-VersionHeader
+        $profileScript = Join-Path $RootDir "scripts\profile\run.ps1"
+        $isProfileScriptPresent = Test-Path $profileScript
+        if (-not $isProfileScriptPresent) {
+            Write-Host "  [ FAIL ] " -ForegroundColor Red -NoNewline
+            Write-Host "Profile dispatcher missing at: $profileScript"
+            exit 1
+        }
+        & $profileScript @Install
         exit $LASTEXITCODE
     }
 
@@ -1568,13 +1598,18 @@ if ($hasInstallKeywords) {
 
     $totalSteps = @($resolvedEntries).Count
     $idList = ($resolvedEntries | ForEach-Object {
-        $label = "$($_.Id)"
-        $hasMode = -not [string]::IsNullOrWhiteSpace($_.Mode)
-        if ($hasMode) {
-            $shortMode = ($_.Mode -replace '^group ', '')
-            $label = "$label[$shortMode]"
+        $isSubcommand = $_.Kind -eq "subcommand"
+        if ($isSubcommand) {
+            "$($_.Dispatcher):$($_.Action)"
+        } else {
+            $label = "$($_.Id)"
+            $hasMode = -not [string]::IsNullOrWhiteSpace($_.Mode)
+            if ($hasMode) {
+                $shortMode = ($_.Mode -replace '^group ', '')
+                $label = "$label[$shortMode]"
+            }
+            $label
         }
-        $label
     }) -join ', '
     Write-Host ""
     Write-Host "  [ INFO ] " -ForegroundColor Cyan -NoNewline
@@ -1595,9 +1630,32 @@ if ($hasInstallKeywords) {
         39 = "DOTNET_MODE"
         40 = "JAVA_MODE"
         41 = "PYTHON_LIBS_MODE"
+        48 = "CONEMU_MODE"
     }
 
     foreach ($entry in $resolvedEntries) {
+        $isSubcommand = $entry.Kind -eq "subcommand"
+        if ($isSubcommand) {
+            # Dispatch e.g. "os clean" or "profile minimal" via root run.ps1 sub-dispatcher
+            $dispatcherScript = Join-Path $RootDir "scripts\$($entry.Dispatcher)\run.ps1"
+            $isDispatcherPresent = Test-Path $dispatcherScript
+            if (-not $isDispatcherPresent) {
+                Write-Host ""
+                Write-Host "  [ FAIL ] " -ForegroundColor Red -NoNewline
+                Write-Host "Subcommand dispatcher not found: $dispatcherScript"
+                $failCount++
+                continue
+            }
+            Write-Host ""
+            Write-Host "  ----- Subcommand: $($entry.Dispatcher) $($entry.Action) -----" -ForegroundColor Cyan
+            $actionParts = $entry.Action -split '\s+' | Where-Object { $_.Length -gt 0 }
+            & $dispatcherScript @actionParts
+            $code = $LASTEXITCODE
+            if ($code -eq 0 -or $null -eq $code) { $successCount++ } else { $failCount++ }
+            Refresh-EnvPath
+            continue
+        }
+
         $id      = $entry.Id
         $modeKey = $entry.Mode
         $hasModeOverride = -not [string]::IsNullOrWhiteSpace($modeKey)
