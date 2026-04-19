@@ -250,3 +250,93 @@ When copying `install.ps1` and `install.sh` into a new `-vN` repository (e.g., `
 - **Both** bootstraps MUST be bumped — a mismatch causes redirect loops or misleading banners
 - Version numbers must be **integers**, not strings (for proper numeric comparison)
 - Never commit the old version number to a new repo — users will see confusing "v7" banners when running from v8
+
+---
+
+## Self-Relocation Clone Flow (install.ps1)
+
+### Problem
+
+Two distinct failure modes when re-running the bootstrap one-liner:
+
+1. **stderr-as-error noise** — `git clone` writes its progress (`Cloning into '...'`) to stderr. Using `2>&1` to merge streams in PowerShell promotes those lines to `RemoteException` records, which PowerShell prints in red as `NativeCommandError` even on a successful clone (exit 0).
+2. **Folder is in use** — When the user runs the bootstrap from **inside** `C:\Users\X\scripts-fixer` (or from a parent that contains a `scripts-fixer` subfolder), `Remove-Item` may fail because the current shell is holding a handle on the directory.
+
+### Fix
+
+#### Stderr handling
+
+Do NOT use `2>&1` to merge git's stream. Redirect stderr to a temp file:
+
+```powershell
+$errFile = [System.IO.Path]::GetTempFileName()
+$stdout  = & git clone --quiet $repo $target 2>$errFile
+$exit    = $LASTEXITCODE
+$stderr  = Get-Content $errFile -Raw
+Remove-Item $errFile -Force
+```
+
+Use `--quiet` to suppress most progress output. Only print `$stderr` when `$exit -ne 0`.
+
+#### Self-relocation flow
+
+Detect whether CWD is the target folder OR contains a `scripts-fixer` sibling:
+
+```powershell
+$cwdLeaf        = Split-Path (Get-Location).Path -Leaf
+$isInsideTarget = ($cwdLeaf -ieq 'scripts-fixer')
+$hasSibling     = Test-Path (Join-Path (Get-Location).Path 'scripts-fixer')
+$needsRelocate  = $isInsideTarget -or $hasSibling
+```
+
+When `$needsRelocate`:
+
+1. **`cd` to parent** if `$isInsideTarget` (releases handle on target dir).
+2. **Try direct removal** of `$folder` with `Remove-FolderSafe` (clears read-only bits first, then `Remove-Item -Recurse -Force`).
+3. If removal **succeeded** → clone directly into `$folder`.
+4. If removal **failed** → clone into `$env:TEMP\scripts-fixer-bootstrap-<timestamp>`, then `Copy-Item` recursively into `$folder` (overwriting locked files in place where possible). Best-effort cleanup of temp staging.
+5. **`cd` into `$folder`** and launch `run.ps1 -d`.
+
+When **no conflict** detected → direct clone, no relocation noise.
+
+### Logging contract
+
+Every step logs with a tag and exact paths:
+
+```
+  [LOCATE] Current directory : D:\scripts-fixer
+  [LOCATE] Target folder     : C:\Users\Administrator\scripts-fixer
+  [LOCATE] You are INSIDE a 'scripts-fixer' folder -- using relocation flow.
+  [CD]     Stepping out to parent  : D:\
+  [CLEAN]  Removing existing folder: C:\Users\Administrator\scripts-fixer
+  [OK]     Folder removed.
+  [GIT]    Cloning from : https://github.com/alimtvnetwork/scripts-fixer-v8.git
+  [GIT]    Cloning into : C:\Users\Administrator\scripts-fixer
+  [OK]     Cloned successfully into C:\Users\Administrator\scripts-fixer
+  [CD]     Entering              : C:\Users\Administrator\scripts-fixer
+```
+
+On lock fallback:
+
+```
+  [INFO] Direct removal failed -- will use TEMP staging fallback.
+  [TEMP] Staging clone path  : C:\Users\X\AppData\Local\Temp\scripts-fixer-bootstrap-20260419-143022
+  [GIT]  Cloning from : https://github.com/alimtvnetwork/scripts-fixer-v8.git
+  [GIT]  Cloning into : <temp path>
+  [OK]   Temp clone complete.
+  [COPY] From : <temp path>
+  [COPY] To   : C:\Users\X\scripts-fixer
+  [OK]   Files copied into C:\Users\X\scripts-fixer
+  [CLEAN] Temp staging removed.
+```
+
+### Test matrix
+
+| Scenario                                                  | Expected flow                       |
+|-----------------------------------------------------------|-------------------------------------|
+| Fresh machine, no existing folder                         | Direct clone                        |
+| Re-run from `C:\Users\X` (sibling exists, not inside)     | Remove sibling, direct clone        |
+| Re-run from **inside** `C:\Users\X\scripts-fixer`         | cd .., remove, direct clone         |
+| Re-run from inside, but folder is locked by another shell | cd .., remove fails, TEMP + copy    |
+| Run from `D:\scripts-fixer` (different drive sibling name)| cd .., remove, direct clone         |
+| Run from arbitrary folder (no conflict at all)            | Direct clone, no relocation logs    |
