@@ -1,0 +1,25 @@
+{
+  "_comment": "Configuration for the 'os' subcommand dispatcher and its helpers.",
+  "clean": {
+    "softwareDistribution": "C:\\Windows\\SoftwareDistribution\\Download",
+    "tempEnvVar": "TEMP",
+    "includeWindowsTemp": false,
+    "windowsTemp": "C:\\Windows\\Temp",
+    "clearEventLogs": true,
+    "clearPSReadLineHistory": true,
+    "clearCurrentSessionHistory": true
+  },
+  "hibernate": {
+    "hiberfilPath": "C:\\hiberfil.sys"
+  },
+  "longPath": {
+    "registryKey": "HKLM:\\SYSTEM\\CurrentControlSet\\Control\\FileSystem",
+    "valueName": "LongPathsEnabled"
+  },
+  "addUser": {
+    "defaultGroup": "Users",
+    "passwordNeverExpires": true,
+    "accountNeverExpires": true,
+    "pinHintFolder": "%TEMP%"
+  }
+}

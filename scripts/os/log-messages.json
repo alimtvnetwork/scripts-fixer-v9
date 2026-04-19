@@ -1,0 +1,50 @@
+{
+  "scriptName": "OS Subcommands",
+  "description": "Windows housekeeping subcommands: clean, hib-off, flp, add-user.",
+  "status": {
+    "ok":   "[  OK  ]",
+    "fail": "[ FAIL ]",
+    "info": "[ INFO ]",
+    "warn": "[ WARN ]",
+    "skip": "[ SKIP ]"
+  },
+  "messages": {
+    "adminRequired": "Administrator elevation required. Re-launching with -Verb RunAs ...",
+    "adminRelaunchFailed": "Failed to re-launch elevated. Run this command from an Administrator PowerShell.",
+    "userCancelled": "Cancelled by user.",
+    "confirmPrompt": "Proceed? [y/N]: "
+  },
+  "clean": {
+    "stepStart": "Step {n}: {label}",
+    "stepDone": "Step {n} done -- removed {count} item(s), freed {mb} MB",
+    "stepError": "Step {n} error at {path}: {error}",
+    "stepSkipped": "Step {n} skipped: {reason}",
+    "summaryHeader": "OS Clean Summary",
+    "summaryRow": "  {label} | items: {count} | freed: {mb} MB | status: {status}"
+  },
+  "hibernate": {
+    "off": "Hibernation disabled. Freed {gb} GB (hiberfil.sys removed).",
+    "offNoFile": "Hibernation disabled. hiberfil.sys was not present (already off or never enabled).",
+    "on": "Hibernation enabled.",
+    "powercfgFailed": "powercfg.exe /hibernate {mode} failed with exit code {code}."
+  },
+  "longPath": {
+    "alreadyEnabled": "Long paths already enabled (LongPathsEnabled=1).",
+    "enabled": "Long paths enabled (LongPathsEnabled=1). Reboot recommended.",
+    "verifyFailed": "Failed to set LongPathsEnabled at {path}. Current value: {current}",
+    "missingArgs": "Missing arguments. Usage: .\\run.ps1 os add-user <name> <pass> [pin] [email]"
+  },
+  "addUser": {
+    "missingName": "Missing <name>. Usage: .\\run.ps1 os add-user <name> <pass> [pin] [email]",
+    "missingPass": "Missing <pass>. Usage: .\\run.ps1 os add-user <name> <pass> [pin] [email]",
+    "userExists": "User '{name}' already exists -- skipping create.",
+    "userCreated": "Created local user '{name}'.",
+    "userCreateFailed": "Failed to create user '{name}': {error}",
+    "addedToGroup": "Added '{name}' to group '{group}'.",
+    "groupAddFailed": "Could not add '{name}' to group '{group}': {error}",
+    "pinNotice": "PIN '{pinMasked}' provided. Windows requires interactive PIN setup. Hint saved to '{hintFile}'. Sign in as '{name}' and use Settings -> Accounts -> Sign-in options to set the PIN.",
+    "pinHintWriteFailed": "Failed to write PIN hint file at '{path}': {error}",
+    "emailNotice": "Email '{email}' noted. To link a Microsoft account, '{name}' must sign in to Settings -> Accounts -> 'Sign in with a Microsoft account instead'.",
+    "summaryHeader": "User Setup Summary"
+  }
+}
