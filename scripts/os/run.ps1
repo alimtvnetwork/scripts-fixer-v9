@@ -69,9 +69,9 @@ $script:CleanCatalog = @(
     @{ B = "F"; Cat = "npm-cache";           Desc = "npm cache clean --force" },
     @{ B = "F"; Cat = "pip-cache";           Desc = "pip cache purge" },
     @{ B = "F"; Cat = "docker-dangling";     Desc = "docker system prune -f" },
-    @{ B = "G"; Cat = "obs-recordings";      Desc = "~/Videos *.mkv|*.mp4 >N days (SUBCOMMAND ONLY -- never aggregate)" },
+    @{ B = "G"; Cat = "obs-recordings";      Desc = "~/Videos *.mkv|*.mp4 >N days (DESTRUCTIVE -- consent)" },
     @{ B = "G"; Cat = "steam-shader";        Desc = "Steam shader cache (all libraries)" },
-    @{ B = "G"; Cat = "windows-update-old";  Desc = "DISM ResetBase (SUBCOMMAND ONLY -- never aggregate)" }
+    @{ B = "G"; Cat = "windows-update-old";  Desc = "DISM ResetBase (DESTRUCTIVE -- consent)" }
 )
 
 function Show-OsHelp {

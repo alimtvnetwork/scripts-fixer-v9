@@ -105,12 +105,10 @@ $catalog = @(
     @{ Cat = "npm-cache";           Bucket = "F"; Helper = "npm-cache.ps1" },
     @{ Cat = "pip-cache";           Bucket = "F"; Helper = "pip-cache.ps1" },
     @{ Cat = "docker-dangling";     Bucket = "F"; Helper = "docker-dangling.ps1" },
-    # Bucket G -- Media / DISM
-    # NOTE: obs-recordings + windows-update-old are SUBCOMMAND-ONLY by policy.
-    #       Too risky for aggregate even with consent (deletes user video files
-    #       / removes Windows update rollback). Run explicitly via
-    #       `os clean-obs-recordings` or `os clean-windows-update-old`.
-    @{ Cat = "steam-shader";        Bucket = "G"; Helper = "steam-shader.ps1" }
+    # Bucket G -- Media / DISM (destructive, typed-yes consent on first run)
+    @{ Cat = "obs-recordings";      Bucket = "G"; Helper = "obs-recordings.ps1" },
+    @{ Cat = "steam-shader";        Bucket = "G"; Helper = "steam-shader.ps1" },
+    @{ Cat = "windows-update-old";  Bucket = "G"; Helper = "windows-update-old.ps1" }
 )
 
 # ---------- Filter ----------
