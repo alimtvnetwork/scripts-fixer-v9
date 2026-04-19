@@ -253,7 +253,10 @@ When copying `install.ps1` and `install.sh` into a new `-vN` repository (e.g., `
 
 ---
 
-## Self-Relocation Clone Flow (install.ps1)
+## Self-Relocation Clone Flow (install.ps1 + install.sh)
+
+> Both bootstraps implement the **same** self-relocation logic and the **same**
+> stderr-noise fix. Keep them in sync when changing one — see test matrix.
 
 ### Problem
 
