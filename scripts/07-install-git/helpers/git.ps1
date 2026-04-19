@@ -330,6 +330,99 @@ function Configure-GitGlobal {
             Write-Log $LogMessages.messages.settingPushAutoSetup -Level "success"
         }
     }
+
+    # -- safe.directory='*' (silence 'dubious ownership' warnings) ---------------
+    $hasSafeDirSection = $null -ne $gc.PSObject.Properties['safeDirectoryWildcard']
+    if ($hasSafeDirSection) {
+        $safeConfig = $gc.safeDirectoryWildcard
+        if ($safeConfig.enabled) {
+            $existingSafe = @(& git config --global --get-all safe.directory 2>$null)
+            $hasWildcard = $existingSafe -contains '*'
+            if ($hasWildcard) {
+                Write-Log $LogMessages.messages.safeDirectoryWildcardAlreadySet -Level "info"
+            }
+            else {
+                & git config --global --add safe.directory '*'
+                Write-Log $LogMessages.messages.settingSafeDirectoryWildcard -Level "success"
+            }
+        }
+    }
+
+    # -- Git LFS filters (re-assert globally) ------------------------------------
+    $hasLfsFilterSection = $null -ne $gc.PSObject.Properties['lfsFilters']
+    if ($hasLfsFilterSection) {
+        $lfsFilters = $gc.lfsFilters
+        if ($lfsFilters.enabled) {
+            $filterMap = @{
+                "filter.lfs.clean"   = $lfsFilters.clean
+                "filter.lfs.smudge"  = $lfsFilters.smudge
+                "filter.lfs.process" = $lfsFilters.process
+            }
+            $hasRequiredKey = $null -ne $lfsFilters.PSObject.Properties['required']
+            if ($hasRequiredKey -and $lfsFilters.required) {
+                $filterMap["filter.lfs.required"] = "true"
+            }
+
+            foreach ($key in $filterMap.Keys) {
+                $desiredValue = $filterMap[$key]
+                $hasDesired = -not [string]::IsNullOrWhiteSpace($desiredValue)
+                if (-not $hasDesired) { continue }
+
+                $currentValue = & git config --global $key 2>$null
+                $isAlreadySet = $currentValue -eq $desiredValue
+                if ($isAlreadySet) {
+                    $msg = $LogMessages.messages.lfsFilterAlreadySet `
+                        -replace '\{key\}', $key `
+                        -replace '\{value\}', $currentValue
+                    Write-Log $msg -Level "info"
+                }
+                else {
+                    & git config --global $key $desiredValue
+                    $msg = $LogMessages.messages.settingLfsFilter `
+                        -replace '\{key\}', $key `
+                        -replace '\{value\}', $desiredValue
+                    Write-Log $msg -Level "success"
+                }
+            }
+        }
+    }
+
+    # -- url.<base>.insteadOf rewrites (force SSH for GitHub + GitLab) -----------
+    $hasUrlRewriteSection = $null -ne $gc.PSObject.Properties['urlRewrites']
+    if ($hasUrlRewriteSection) {
+        $urlRewrites = $gc.urlRewrites
+        if ($urlRewrites.enabled) {
+            $rules = $urlRewrites.rules
+            $hasRules = $null -ne $rules -and $rules.Count -gt 0
+            if ($hasRules) {
+                foreach ($rule in $rules) {
+                    $base       = $rule.base
+                    $insteadOf  = $rule.insteadOf
+                    $hasBase    = -not [string]::IsNullOrWhiteSpace($base)
+                    $hasInstead = -not [string]::IsNullOrWhiteSpace($insteadOf)
+                    if (-not ($hasBase -and $hasInstead)) { continue }
+
+                    $configKey = "url.$base.insteadOf"
+                    # Read all existing values for this key (insteadOf can be multi-valued)
+                    $existing = @(& git config --global --get-all $configKey 2>$null)
+                    $isAlreadyPresent = $existing -contains $insteadOf
+                    if ($isAlreadyPresent) {
+                        $msg = $LogMessages.messages.urlRewriteAlreadySet `
+                            -replace '\{base\}', $base `
+                            -replace '\{insteadOf\}', $insteadOf
+                        Write-Log $msg -Level "info"
+                    }
+                    else {
+                        & git config --global --add $configKey $insteadOf
+                        $msg = $LogMessages.messages.settingUrlRewrite `
+                            -replace '\{base\}', $base `
+                            -replace '\{insteadOf\}', $insteadOf
+                        Write-Log $msg -Level "success"
+                    }
+                }
+            }
+        }
+    }
 }
 
 function Update-GitPath {

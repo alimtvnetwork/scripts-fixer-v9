@@ -6,9 +6,9 @@
 
 [![PowerShell](https://img.shields.io/badge/PowerShell-5.1%2B-blue?logo=powershell&logoColor=white)](https://docs.microsoft.com/powershell/)
 [![Windows](https://img.shields.io/badge/Windows-10%2F11-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows)
-[![Scripts](https://img.shields.io/badge/Scripts-46-green)](scripts/)
+[![Scripts](https://img.shields.io/badge/Scripts-51-green)](scripts/)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
-[![Changelog](https://img.shields.io/badge/Changelog-v0.32.0-orange)](changelog.md)
+[![Changelog](https://img.shields.io/badge/Changelog-v0.40.0-orange)](changelog.md)
 
 *One command to set up your entire dev environment. No manual installs. No guesswork.*
 
