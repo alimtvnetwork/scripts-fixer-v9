@@ -4,9 +4,10 @@ All notable changes to this project are documented in this file.
 
 ## [v0.41.0] -- 2026-04-19
 
-### Added (OS Clean Expansion -- 32 categories, all aggregate, consent-gated)
+### Added (OS Clean Expansion -- 32 categories, 30 in aggregate, consent-gated)
 
 - **Catalog**: 32 new flat top-level subcommands `os clean-<name>` across 7 buckets (System, User shell, Graphics/Web, Browsers, Apps, Dev tools, Media). See `os --help` for the full inline grouped list.
+- **Safety carve-out**: `obs-recordings` and `windows-update-old` are **SUBCOMMAND ONLY** -- never executed by aggregate `os clean`, even with `--yes`. Too risky (deletes user video files / removes Windows update rollback). Run them explicitly via `os clean-obs-recordings` or `os clean-windows-update-old`. Aggregate runs 30/32 categories.
 - **Aggregate `os clean`**: rewritten as a pure orchestrator that walks the catalog in order, calls each helper, accumulates results, prints per-category summary table + grand total + deduped LOCKED FILES section. Replaces the legacy 9-step flow.
 - **`scripts/os/helpers/clean-categories/`**: 32 self-contained helper scripts, each exporting the standard result hashtable contract documented in `_sweep.ps1`. Every helper: own try/catch, own locked-file accumulator, own dry-run support, own consent gate when destructive.
 - **`_sweep.ps1`**: shared primitives (`New-CleanResult`, `Invoke-PathSweep`, `Get-LockReason`, `Resolve-CleanPath`, `Test-DryRunSwitch`, `Test-YesSwitch`, `Get-DaysArg`, `Stop-WindowsService` / `Start-WindowsService`, `Set-CleanResultStatus`).
