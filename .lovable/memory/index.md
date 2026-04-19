@@ -29,6 +29,7 @@ Bootstrap (install.ps1/install.sh): parses scripts-fixer-vN, parallel-probes v(N
 - [Path parameter](mem://features/path-parameter) — Every run.ps1 accepts -Path to override dev directory
 - [Uninstall command](mem://features/uninstall-command) — Every run.ps1 supports uninstall subcommand
 - [Install bootstrap](mem://features/install-bootstrap) — install.ps1/install.sh auto-discovery, fresh-clone, -Version flag
+- [Install self-relocation](mem://features/install-self-relocation) — install.ps1 stderr-noise fix + cd-out + TEMP-staging fallback when CWD is/contains scripts-fixer
 - [Models orchestrator](mem://features/models-orchestrator) — scripts/models/ unified entry: search, install csv, uninstall
 - [Suggestions tracker](mem://suggestions/01-suggestions-tracker) — All suggestions: implemented and pending
 - [Workflow status](mem://workflow/01-current-status) — What is done and pending as of v0.36.0
