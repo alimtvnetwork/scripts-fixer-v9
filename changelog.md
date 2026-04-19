@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.40.0] -- 2026-04-19  *(2025-batch capstone release)*
+
+### Added (`07-install-git` default gitconfig refresh -- Group E)
+
+- **`safe.directory='*'` baked into the default gitconfig** -- new `gitConfig.safeDirectoryWildcard` block in `scripts/07-install-git/config.json`. Same effect as `.\run.ps1 gsa` (Group C), but applied automatically the first time you install git via `.\run.ps1 install git`. Idempotent: re-reads `git config --global --get-all safe.directory`, only adds `*` if not already present. New installs no longer hit "fatal: detected dubious ownership" warnings out of the box.
+- **Git LFS filters re-asserted globally** -- new `gitConfig.lfsFilters` block. Sets `filter.lfs.clean`, `filter.lfs.smudge`, `filter.lfs.process`, `filter.lfs.required=true`. Normally `git lfs install` already does this, but the explicit re-assertion guarantees the filters survive even if the LFS install step was skipped, the config got wiped, or git-lfs was removed and reinstalled. Per-key idempotent.
+- **GitHub + GitLab SSH URL rewrites** -- new `gitConfig.urlRewrites` block with two default rules: `url.git@github.com:.insteadOf = https://github.com/` and `url.git@gitlab.com:.insteadOf = https://gitlab.com/`. Cloning an HTTPS URL pasted from a browser silently uses your SSH key instead of prompting for a password / PAT. Each rule is independently idempotent (`git config --get-all` lookup before append). Disable the whole block by setting `gitConfig.urlRewrites.enabled = false`, or remove individual rules from the array.
+
+### Changed (root help -- Group E polish)
+
+- **Root help text** (`Show-RootHelp` in `run.ps1`) now lists `os clean`, `os temp-clean`, and the rest of the `os` subcommands as separate lines so users discover the new `temp-clean` independent code path immediately. The umbrella `os <action>` line stays for the lesser-used actions (`hib-off`, `flp`, `add-user`).
+- **Readme badges** bumped: Scripts count `46 -> 51`, Changelog version `v0.32.0 -> v0.40.0`. License badge already MIT (added in v0.39.6).
+
+### Notes
+
+- This release closes the **2025-batch** scope (specs in `spec/2025-batch/`): Ubuntu font, ConEmu, WhatsApp, OS clean, OneNote, fix-long-path, add-user, Lightshot, hibernate-off, PSReadLine, profiles, **and now `git-safe-all` + the gitconfig refresh**.
+- Going forward, the `gsa` subcommand (added in v0.39.7) is most useful for **existing machines** where you want to add per-repo safe.directory entries for repos that pre-date this gitconfig template. Fresh installs get the wildcard automatically.
+- All three new gitConfig blocks (`safeDirectoryWildcard`, `lfsFilters`, `urlRewrites`) are opt-out via `enabled: false` -- nothing is forced on users who want a stricter setup.
+
 ## [v0.39.7] -- 2026-04-19
 
 ### Added (`git-tools` dispatcher + `gsa` subcommand -- Group C)
