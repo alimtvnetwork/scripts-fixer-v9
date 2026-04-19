@@ -1,12 +1,13 @@
 {
   "scriptName": "OS Subcommands",
-  "description": "Windows housekeeping subcommands: clean, hib-off, flp, add-user.",
+  "description": "Windows housekeeping subcommands: clean, temp-clean, hib-off, flp, add-user.",
   "status": {
     "ok":   "[  OK  ]",
     "fail": "[ FAIL ]",
     "info": "[ INFO ]",
     "warn": "[ WARN ]",
-    "skip": "[ SKIP ]"
+    "skip": "[ SKIP ]",
+    "lock": "[ LOCK ]"
   },
   "messages": {
     "adminRequired": "Administrator elevation required. Re-launching with -Verb RunAs ...",
@@ -16,11 +17,25 @@
   },
   "clean": {
     "stepStart": "Step {n}: {label}",
-    "stepDone": "Step {n} done -- removed {count} item(s), freed {mb} MB",
+    "stepDone": "Step {n} done -- removed {count} item(s), freed {mb} MB, locked {locked}",
     "stepError": "Step {n} error at {path}: {error}",
     "stepSkipped": "Step {n} skipped: {reason}",
     "summaryHeader": "OS Clean Summary",
-    "summaryRow": "  {label} | items: {count} | freed: {mb} MB | status: {status}"
+    "summaryRow": "  {label} | items: {count} | freed: {mb} MB | locked: {locked} | status: {status}",
+    "lockedHeader": "Locked / un-removable files (skipped, will retry on next reboot or after closing the holding process)",
+    "lockedRow": "  {path}  --  {reason}",
+    "lockedTruncated": "  ... and {more} more locked file(s) not shown (limit: {limit}). See log file for full list.",
+    "cascadingTempClean": "Step {n}: cascading 'os temp-clean' as a sub-step ...",
+    "chocoCleanerFound": "choco-cleaner detected -- running it as part of choco cache cleanup",
+    "chocoCleanerNotFound": "choco-cleaner not installed -- using manual choco cache sweep only",
+    "chocoCleanerFailed": "choco-cleaner exited with errors: {error}",
+    "chocoCleanStart": "Cleaning Chocolatey cache (lib-bad, lib-bkp, *.backup, *.nupkg cache, %TEMP%\\chocolatey) -- live install untouched",
+    "chocoNotInstalled": "Chocolatey not installed -- skipping choco cache cleanup"
+  },
+  "tempClean": {
+    "header": "Temp directories cleanup -- locked files will be reported, not crashed on",
+    "perUserSweep": "Sweeping per-user Temp folders under {root} ({count} user profile(s) found)",
+    "summaryHeader": "OS Temp-Clean Summary"
   },
   "hibernate": {
     "off": "Hibernation disabled. Freed {gb} GB (hiberfil.sys removed).",

@@ -3,11 +3,33 @@
   "clean": {
     "softwareDistribution": "C:\\Windows\\SoftwareDistribution\\Download",
     "tempEnvVar": "TEMP",
-    "includeWindowsTemp": false,
+    "includeWindowsTemp": true,
     "windowsTemp": "C:\\Windows\\Temp",
     "clearEventLogs": true,
     "clearPSReadLineHistory": true,
-    "clearCurrentSessionHistory": true
+    "clearCurrentSessionHistory": true,
+    "clearChocoCache": true,
+    "tempCleanCascade": true,
+    "lockedFilesMaxReport": 50
+  },
+  "tempClean": {
+    "tempEnvVar": "TEMP",
+    "windowsTemp": "C:\\Windows\\Temp",
+    "localAppDataTempVar": "LOCALAPPDATA",
+    "perUserTempRoot": "C:\\Users",
+    "clearChocoTemp": true,
+    "lockedFilesMaxReport": 50
+  },
+  "choco": {
+    "root": "C:\\ProgramData\\chocolatey",
+    "cleanPaths": [
+      "C:\\ProgramData\\chocolatey\\lib-bad",
+      "C:\\ProgramData\\chocolatey\\lib-bkp"
+    ],
+    "backupGlob": "C:\\ProgramData\\chocolatey\\.chocolatey\\*\\.backup",
+    "nupkgCacheGlob": "C:\\ProgramData\\chocolatey\\lib\\*\\*.nupkg",
+    "tempGlob": "chocolatey",
+    "useChocoCleaner": true
   },
   "hibernate": {
     "hiberfilPath": "C:\\hiberfil.sys"
