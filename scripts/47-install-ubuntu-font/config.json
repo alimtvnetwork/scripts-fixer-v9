@@ -1,0 +1,15 @@
+{
+  "devDir": {
+    "mode": "smart",
+    "default": "auto",
+    "override": ""
+  },
+  "ubuntuFont": {
+    "enabled": true,
+    "chocoPackage": "ubuntu.font",
+    "name": "Ubuntu Font",
+    "desc": "Ubuntu font family installed system-wide via Chocolatey",
+    "verifyPattern": "Ubuntu*.ttf",
+    "skipDevDirPrompt": true
+  }
+}

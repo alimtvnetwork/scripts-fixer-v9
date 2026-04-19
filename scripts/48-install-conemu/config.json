@@ -1,0 +1,24 @@
+{
+  "devDir": {
+    "mode": "smart",
+    "default": "auto",
+    "override": ""
+  },
+  "conemu": {
+    "enabled": true,
+    "verifyCommand": "ConEmu64",
+    "chocoPackage": "conemu",
+    "name": "ConEmu",
+    "desc": "Windows console emulator with tabs, splits, and rich settings",
+    "skipDevDirPrompt": true,
+    "settings": {
+      "sourceFolder": "settings/06 - conemu",
+      "fileName": "ConEmu.xml",
+      "targetFolder": "%APPDATA%\\ConEmu",
+      "backupExisting": true,
+      "maxFileSizeBytes": 2097152
+    },
+    "defaultMode": "install+settings",
+    "validModes": ["install+settings", "settings-only", "install-only"]
+  }
+}

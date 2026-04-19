@@ -1,0 +1,43 @@
+{
+  "scriptName": "install-onenote",
+  "scriptTitle": "Install OneNote (+ tray remove + OneDrive disable)",
+  "scriptDesc": "Install OneNote desktop, remove OneNote tray icon, disable OneDrive autostart and scheduled tasks",
+  "messages": {
+    "checking": "Checking for existing OneNote install...",
+    "alreadyInstalled": "OneNote already installed at: {path}",
+    "notFound": "OneNote not found -- will install",
+    "installingChoco": "Installing onenote via Chocolatey...",
+    "chocoFailed": "choco install onenote failed: {error}",
+    "fallbackDownload": "Falling back to direct download from Microsoft: {url}",
+    "fallbackDownloadFailed": "Fallback download failed: {error}",
+    "fallbackInstalling": "Running OneNote installer with silent args...",
+    "installSuccess": "OneNote installed",
+    "installFailed": "OneNote installation failed via both Chocolatey and fallback download",
+    "removingTray": "Removing OneNote tray icon (ONENOTEM.EXE)...",
+    "trayRemoved": "OneNote tray icon disabled and process killed",
+    "trayNotPresent": "OneNote tray helper not running -- nothing to remove",
+    "disablingOneDrive": "Disabling OneDrive (process kill + scheduled tasks + autostart)...",
+    "oneDriveStopped": "OneDrive process stopped",
+    "oneDriveNotRunning": "OneDrive not running -- nothing to stop",
+    "oneDriveTasksDisabled": "Disabled {count} OneDrive scheduled task(s)",
+    "oneDriveAutostartRemoved": "Removed OneDrive autostart entry from HKCU Run key",
+    "oneDriveAutostartMissing": "OneDrive autostart entry not present -- nothing to remove",
+    "setupComplete": "OneNote setup complete (install + tray + OneDrive disable)",
+    "uninstalling": "Uninstalling {name}...",
+    "uninstallSuccess": "{name} uninstalled successfully.",
+    "uninstallFailed": "{name} uninstall failed -- package may need manual removal.",
+    "uninstallComplete": "Uninstall complete. Package removed, tracking purged."
+  },
+  "help": {
+    "commands": {
+      "install": "Install OneNote + remove tray + disable OneDrive (default)",
+      "uninstall": "Uninstall OneNote, remove tracking"
+    },
+    "examples": [
+      ".\\run.ps1 install onenote",
+      ".\\run.ps1 -I 50",
+      ".\\run.ps1 -I 50 -- -Help",
+      ".\\run.ps1 -I 50 uninstall"
+    ]
+  }
+}

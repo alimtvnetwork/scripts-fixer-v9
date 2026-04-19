@@ -1,0 +1,47 @@
+{
+  "scriptName": "install-conemu",
+  "scriptTitle": "Install ConEmu",
+  "scriptDesc": "Install ConEmu console emulator and sync ConEmu.xml settings (3 modes: ConEmu + Settings, Settings only, Install only)",
+  "messages": {
+    "alreadyInstalled": "ConEmu {version} is already installed",
+    "notFound": "ConEmu not found -- will install now",
+    "installDir": "Install target: {path}",
+    "installing": "Installing ConEmu via Chocolatey...",
+    "installSuccess": "ConEmu installed successfully",
+    "installFailed": "ConEmu installation failed: {error}",
+    "syncingSettings": "Copying ConEmu.xml to %APPDATA%\\ConEmu...",
+    "settingsSynced": "ConEmu.xml synced to {path}",
+    "settingsSourceMissing": "ConEmu.xml source not found at {path} -- skipping sync",
+    "settingsBackedUp": "Backed up existing ConEmu.xml to {path}",
+    "exportStarting": "Exporting ConEmu.xml from {source}...",
+    "exportNoSource": "ConEmu.xml not found in %APPDATA%\\ConEmu -- has ConEmu been launched at least once?",
+    "exportNoFiles": "Nothing to export -- ConEmu.xml missing",
+    "exportComplete": "ConEmu settings exported -- ConEmu.xml saved to {path}",
+    "setupComplete": "ConEmu setup complete",
+    "uninstalling": "Uninstalling {name}...",
+    "uninstallSuccess": "{name} uninstalled successfully.",
+    "uninstallFailed": "{name} uninstall failed -- package may need manual removal.",
+    "uninstallComplete": "Uninstall complete. Package removed, tracking purged."
+  },
+  "help": {
+    "commands": {
+      "install+settings": "Install ConEmu and sync ConEmu.xml (default)",
+      "settings-only": "Sync ConEmu.xml only (no install)",
+      "install-only": "Install ConEmu only (no settings sync)",
+      "export": "Export ConEmu.xml from machine to repo for backup",
+      "uninstall": "Uninstall completely, remove tracking, clean up"
+    },
+    "examples": [
+      ".\\run.ps1 install conemu",
+      ".\\run.ps1 install conemu+settings",
+      ".\\run.ps1 install conemu-settings",
+      ".\\run.ps1 install install-conemu",
+      ".\\run.ps1 -I 48",
+      ".\\run.ps1 -I 48 -- -Mode settings-only",
+      ".\\run.ps1 -I 48 -- -Mode install-only",
+      ".\\run.ps1 -I 48 -- export",
+      ".\\run.ps1 -I 48 -- -Help",
+      ".\\run.ps1 -I 48 uninstall"
+    ]
+  }
+}

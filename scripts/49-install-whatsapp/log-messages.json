@@ -1,0 +1,32 @@
+{
+  "scriptName": "install-whatsapp",
+  "scriptTitle": "Install WhatsApp",
+  "scriptDesc": "Install WhatsApp Desktop via Chocolatey (skips Microsoft Store entirely)",
+  "messages": {
+    "checking": "Checking for existing WhatsApp Desktop install...",
+    "alreadyInstalled": "WhatsApp Desktop already installed at: {path}",
+    "notFound": "WhatsApp Desktop not found -- will install via Chocolatey",
+    "installing": "Installing whatsapp via Chocolatey...",
+    "installSuccess": "WhatsApp Desktop installed at: {path}",
+    "installFailed": "WhatsApp installation failed: {error}",
+    "verifyFailed": "Install completed but WhatsApp.exe was not found in any expected location -- choco package may have changed install path",
+    "setupComplete": "WhatsApp setup complete",
+    "uninstalling": "Uninstalling {name}...",
+    "uninstallSuccess": "{name} uninstalled successfully.",
+    "uninstallFailed": "{name} uninstall failed -- package may need manual removal.",
+    "uninstallComplete": "Uninstall complete. Package removed, tracking purged."
+  },
+  "help": {
+    "commands": {
+      "install": "Install WhatsApp Desktop via Chocolatey (default)",
+      "uninstall": "Uninstall WhatsApp Desktop, remove tracking"
+    },
+    "examples": [
+      ".\\run.ps1 install whatsapp",
+      ".\\run.ps1 install wa",
+      ".\\run.ps1 -I 49",
+      ".\\run.ps1 -I 49 -- -Help",
+      ".\\run.ps1 -I 49 uninstall"
+    ]
+  }
+}
