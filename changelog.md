@@ -2,7 +2,31 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.39.1] -- 2026-04-19
+
+### Added (2025 Batch -- Group A: 5 new single-tool installers)
+
+- **Script 47 -- `ubuntu-font`**: installs the Ubuntu font family system-wide via `choco install ubuntu.font -y`. Verifies by counting `Ubuntu*.ttf` in `%WINDIR%\Fonts`. Keywords: `ubuntu-font`, `ubuntu.font`, `ubuntufont`.
+- **Script 48 -- `conemu` (+ settings)**: 3-mode pattern (install+settings | settings-only | install-only) plus `export`. Copies `settings/06 - conemu/ConEmu.xml` to `%APPDATA%\ConEmu\ConEmu.xml` with timestamped backup of any existing file. Keywords: `conemu`, `conemu+settings`, `conemu-settings`, `install-conemu`. Settings XML staged from user upload (`07. Alim Desktop workstation 11 - 10 dec 2024.xml`).
+- **Script 49 -- `whatsapp`**: WhatsApp Desktop via `choco install whatsapp -y`. Microsoft Store path explicitly skipped per locked decision. Searches 4 candidate install locations for verification. Keywords: `whatsapp`, `wa`.
+- **Script 50 -- `onenote` (+ tray + OneDrive)**: OneNote via choco with direct-download fallback (Microsoft fwlink). Post-install: kills `ONENOTEM.EXE` tray helper + removes its autostart, stops `OneDrive` process + disables all `OneDrive*` scheduled tasks + removes HKCU Run autostart. Keywords: `onenote`, `one-note`.
+- **Script 51 -- `lightshot` (+ tweaks)**: Lightshot via choco + 4 registry tweaks at `HKCU:\Software\Skillbrains\Lightshot` (`ShowNotifications=0`, `ShowUploadDialog=0`, `JpegQuality=100`, `DefaultAction=0`). Each tweak is verified via read-back. Keywords: `lightshot`, `screenshot-tool`.
+
+### Changed
+
+- `scripts/registry.json` extended with IDs 47-51.
+- `scripts/shared/install-keywords.json` extended with 14 new keywords + 4 new mode entries (ConEmu 3-mode mapping).
+
+### Spec & docs
+
+- All 5 scripts implemented per `spec/2025-batch/01-ubuntu-font.md`, `02-conemu.md`, `03-whatsapp.md`, `06-onenote.md`, `09-lightshot.md`.
+- CODE RED file/path error rule applied throughout: every Test-Path / Copy-Item / Set-ItemProperty failure logs the exact path + reason via `Write-FileError`.
+
 ## [v0.39.0] -- 2026-04-19
+
+### Fixed
+
+- **Resolved unresolved Git merge conflict markers in `scripts/models/`** that broke `.\run models` with PowerShell parser errors (`The '<' operator is reserved for future use.` / `Missing file specification after redirection operator.`). Three files contained `<<<<<<< HEAD` / `=======` / `>>>>>>> lovable-sync-1776538523` blocks left over from a sync merge:
 
 ### Fixed
 

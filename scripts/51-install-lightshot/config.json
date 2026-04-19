@@ -1,0 +1,21 @@
+{
+  "devDir": {
+    "mode": "smart",
+    "default": "auto",
+    "override": ""
+  },
+  "lightshot": {
+    "enabled": true,
+    "chocoPackage": "lightshot",
+    "name": "Lightshot",
+    "desc": "Lightweight screenshot tool with prntsc.com upload (configured to disable notifications and upload prompts)",
+    "skipDevDirPrompt": true,
+    "registryKey": "HKCU:\\Software\\Skillbrains\\Lightshot",
+    "tweaks": {
+      "ShowNotifications": 0,
+      "ShowUploadDialog": 0,
+      "JpegQuality": 100,
+      "DefaultAction": 0
+    }
+  }
+}

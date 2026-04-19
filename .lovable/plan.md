@@ -1,18 +1,18 @@
 # Project Plan -- Dev Tools Setup
 
-## Current Version: v0.38.1
+## Current Version: v0.39.1
 ## Last Updated: 2026-04-19
 
 ---
 
 ## 🔄 In Progress
 
-### 2025 Batch (spec only -- awaiting sign-off)
-- [ ] Spec written: `spec/2025-batch/readme.md` + 12 subdocs (`01-*.md` ... `12-*.md`)
-- [ ] ConEmu XML copied to `settings/06 - conemu/ConEmu.xml`
-- [ ] Memory file: `.lovable/memory/features/2025-batch.md`
-- [ ] **Awaiting user sign-off before implementation**
-- [ ] Implementation order: Group A (47-51) -> Group B (os) -> Group C (gsa) -> Group D (profiles) -> Group E (polish + v0.40.0)
+### 2025 Batch
+- [x] **Group A complete** -- scripts 47 (ubuntu-font), 48 (conemu+settings), 49 (whatsapp), 50 (onenote+tray+onedrive), 51 (lightshot+tweaks). Wired into registry + keywords. v0.39.1 released.
+- [ ] **Group B** -- `os` dispatcher: `clean`, `hib-off`, `flp`, `add-user`
+- [ ] **Group C** -- `git-tools` dispatcher: `gsa` (wildcard + `--scan`)
+- [ ] **Group D** -- `profile` dispatcher: base, git-compact, advance, cpp-dx, small-dev
+- [ ] **Group E** -- polish: default git config update, PSReadLine, bump to v0.40.0
 
 ## ⏳ Pending / Next Steps
 

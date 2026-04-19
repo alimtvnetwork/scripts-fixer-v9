@@ -1,0 +1,14 @@
+{
+  "devDir": {
+    "mode": "smart",
+    "default": "auto",
+    "override": ""
+  },
+  "whatsapp": {
+    "enabled": true,
+    "chocoPackage": "whatsapp",
+    "name": "WhatsApp",
+    "desc": "WhatsApp Desktop client (installed via Chocolatey, not Microsoft Store)",
+    "skipDevDirPrompt": true
+  }
+}

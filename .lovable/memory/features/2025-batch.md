@@ -4,11 +4,11 @@ description: Master spec for 2025 batch -- 5 new tool installers (47-51), 4 OS s
 type: feature
 ---
 
-## 2025 Batch -- spec written, code pending
+## 2025 Batch -- Group A SHIPPED, Groups B-E pending
 
 **Spec location**: `spec/2025-batch/readme.md` + 12 numbered subdocs (`01-*.md` ... `12-*.md`)
-**Status**: spec only -- awaiting user sign-off before implementation
-**Target version**: v0.40.0 (minor bump per project rule, accumulated through patches v0.39.1+)
+**Status**: Group A done in v0.39.1. Groups B-E pending.
+**Final target version**: v0.40.0 (minor bump per project rule, accumulated through patches v0.39.1+)
 
 ## Decisions locked
 

@@ -1,0 +1,35 @@
+{
+  "scriptName": "install-lightshot",
+  "scriptTitle": "Install Lightshot (+ registry tweaks)",
+  "scriptDesc": "Install Lightshot screenshot tool and configure: no notifications, no upload dialog, JPEG quality 100, default action = copy to clipboard",
+  "messages": {
+    "checking": "Checking for existing Lightshot install...",
+    "alreadyInstalled": "Lightshot already installed at: {path}",
+    "notFound": "Lightshot not found -- will install via Chocolatey",
+    "installing": "Installing lightshot via Chocolatey...",
+    "installSuccess": "Lightshot installed at: {path}",
+    "installFailed": "Lightshot installation failed: {error}",
+    "verifyFailed": "Install completed but Lightshot.exe not found in expected locations",
+    "applyingTweaks": "Applying Lightshot registry tweaks at {key}...",
+    "tweakApplied": "Set {name} = {value}",
+    "tweakFailed": "Failed to set {name}: {error}",
+    "tweaksComplete": "Applied {count} Lightshot registry tweak(s)",
+    "setupComplete": "Lightshot setup complete (install + tweaks)",
+    "uninstalling": "Uninstalling {name}...",
+    "uninstallSuccess": "{name} uninstalled successfully.",
+    "uninstallFailed": "{name} uninstall failed -- package may need manual removal.",
+    "uninstallComplete": "Uninstall complete. Package removed, tracking purged."
+  },
+  "help": {
+    "commands": {
+      "install": "Install Lightshot + apply registry tweaks (default)",
+      "uninstall": "Uninstall Lightshot, remove tracking"
+    },
+    "examples": [
+      ".\\run.ps1 install lightshot",
+      ".\\run.ps1 -I 51",
+      ".\\run.ps1 -I 51 -- -Help",
+      ".\\run.ps1 -I 51 uninstall"
+    ]
+  }
+}

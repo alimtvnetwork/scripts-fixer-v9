@@ -1,0 +1,32 @@
+{
+  "scriptName": "install-ubuntu-font",
+  "scriptTitle": "Install Ubuntu Font",
+  "scriptDesc": "Install the Ubuntu font family system-wide via Chocolatey (ubuntu.font)",
+  "messages": {
+    "checking": "Checking for existing Ubuntu font files in %WINDIR%\\Fonts...",
+    "alreadyInstalled": "Ubuntu font already present ({count} ttf files found)",
+    "notFound": "Ubuntu font not found -- will install via Chocolatey",
+    "installing": "Installing ubuntu.font via Chocolatey...",
+    "installSuccess": "Ubuntu font installed successfully ({count} ttf files in %WINDIR%\\Fonts)",
+    "installFailed": "Ubuntu font installation failed: {error}",
+    "verifyFailed": "Install completed but no Ubuntu*.ttf files found in %WINDIR%\\Fonts -- choco package may have changed layout",
+    "setupComplete": "Ubuntu font setup complete",
+    "uninstalling": "Uninstalling {name}...",
+    "uninstallSuccess": "{name} uninstalled successfully.",
+    "uninstallFailed": "{name} uninstall failed -- package may need manual removal.",
+    "uninstallComplete": "Uninstall complete. Package removed, tracking purged."
+  },
+  "help": {
+    "commands": {
+      "install": "Install Ubuntu font via Chocolatey (default)",
+      "uninstall": "Uninstall Ubuntu font, remove tracking"
+    },
+    "examples": [
+      ".\\run.ps1 install ubuntu-font",
+      ".\\run.ps1 install ubuntu.font",
+      ".\\run.ps1 -I 47",
+      ".\\run.ps1 -I 47 -- -Help",
+      ".\\run.ps1 -I 47 uninstall"
+    ]
+  }
+}
