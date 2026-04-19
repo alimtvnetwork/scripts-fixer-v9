@@ -11,7 +11,7 @@
 - [x] **Group A complete** -- scripts 47 (ubuntu-font), 48 (conemu+settings), 49 (whatsapp), 50 (onenote+tray+onedrive), 51 (lightshot+tweaks). Wired into registry + keywords. v0.39.1 released.
 - [ ] **Group B** -- `os` dispatcher: `clean`, `hib-off`, `flp`, `add-user`
 - [ ] **Group C** -- `git-tools` dispatcher: `gsa` (wildcard + `--scan`)
-- [ ] **Group D** -- `profile` dispatcher: base, git-compact, advance, cpp-dx, small-dev
+- [ ] **Group D** -- `profile` dispatcher: minimal, base, git-compact, advance, cpp-dx, small-dev
 - [ ] **Group E** -- polish: default git config update, PSReadLine, bump to v0.40.0
 
 ## ⏳ Pending / Next Steps

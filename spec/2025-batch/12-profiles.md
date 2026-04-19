@@ -6,7 +6,19 @@
 - Keywords: `.\run.ps1 install profile-base`, `.\run.ps1 install profile-advance`, etc.
 - Subcommand: `.\run.ps1 profile base`, `.\run.ps1 profile list`, `.\run.ps1 profile advance --dry-run`
 
-## The 5 profiles
+## The 6 profiles
+
+### 0. Minimal Bootstrap (`profile minimal`)
+For a quick fresh-Windows bootstrap -- nothing extra, just the absolute essentials.
+
+| Step | Action |
+|------|--------|
+| 1 | choco install (script 02) -- ensures package manager exists |
+| 2 | Git (script 07) -- OS-dir |
+| 3 | `choco install 7zip.install -y` (OS-dir) |
+| 4 | `choco install googlechrome -y` (OS-dir) |
+
+Use case: brand-new Windows machine where you only need a browser, an archiver, git, and a package manager to bootstrap further work manually.
 
 ### 1. Base Windows Setup (`profile base`)
 | Step | Action |
@@ -117,6 +129,12 @@ Steps live in `scripts/profile/config.json` for declarative editing:
 ```json
 {
   "profiles": {
+    "minimal": [
+      { "kind": "script", "id": 2 },
+      { "kind": "script", "id": 7 },
+      { "kind": "choco", "package": "7zip.install" },
+      { "kind": "choco", "package": "googlechrome" }
+    ],
     "base": [
       { "kind": "script", "id": 2 },
       { "kind": "script", "id": 7 },
@@ -171,6 +189,7 @@ Steps live in `scripts/profile/config.json` for declarative editing:
 ## Keyword wiring
 
 ```json
+"profile-minimal":   ["profile:minimal"],
 "profile-base":      ["profile:base"],
 "profile-git":       ["profile:git-compact"],
 "profile-advance":   ["profile:advance"],
