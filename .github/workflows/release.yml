@@ -129,6 +129,36 @@ jobs:
 
           Write-Host "[ OK ] $summary is in sync with registry + config sources."
 
+      - name: Lint -- scripts/<folder>/config.json schemas
+        shell: pwsh
+        run: |
+          $linter = 'scripts/_internal/lint-config-schemas.cjs'
+
+          $isLinterPresent = Test-Path $linter
+          if (-not $isLinterPresent) {
+              Write-Host "::error file=$linter::Schema linter missing -- cannot validate config.json files"
+              exit 1
+          }
+
+          # Linter exits 0 (OK or WARN-only) or 1 (one or more FAIL rows).
+          # We propagate that exit code directly: FAIL blocks the release,
+          # WARN does NOT. The linter also emits ::warning / ::error GHA
+          # annotations inline so individual issues surface in the PR/tag UI.
+          & node $linter
+          $linterExit = $LASTEXITCODE
+
+          if ($linterExit -eq 0) {
+              Write-Host "[ OK ] config.json schema lint passed (warnings -- if any -- do not block)."
+          }
+          elseif ($linterExit -eq 1) {
+              Write-Host "::error::config.json schema lint reported FAIL row(s) -- release blocked. Fix the offending config.json files and re-tag."
+              exit 1
+          }
+          else {
+              Write-Host "::error::config.json schema linter crashed (exit $linterExit). See log above."
+              exit 1
+          }
+
       - name: Build release ZIP
         shell: pwsh
         run: ./release.ps1 -Force

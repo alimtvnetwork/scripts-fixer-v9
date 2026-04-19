@@ -2,6 +2,41 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.40.5] -- 2026-04-19
+
+### Added (config.json schema linter -- CI quality gate)
+
+- **`scripts/_internal/lint-config-schemas.cjs`** -- Node script (zero deps, plain `fs`) that walks every `scripts/<folder>/config.json` and validates it against the project schema. Discriminates installer-style scripts (numbered, in `registry.json`) from dispatcher folders (`os`, `profile`, `audit`, `models`, `databases`, `12-install-all-dev-tools`) -- each gets its own ruleset.
+- **CI gate** in `.github/workflows/release.yml`. New "Lint -- scripts/<folder>/config.json schemas" step runs after the registry-summary drift check, before ZIP build. **Blocking on FAIL** (per user sign-off): any FAIL row aborts the release with a `::error` annotation. WARN rows surface as `::warning` annotations but the release proceeds.
+- **`spec/lint-config-schemas/readme.md`** -- full spec covering rules, exit codes, schema discrimination, output format, CI integration, and how to extend.
+
+### Rules enforced
+
+- **R1a (FAIL)** -- `defaultMode` must appear in `validModes` (real runtime bug).
+- **R1b (FAIL)** -- `validModes` must be a non-empty array of non-empty strings (catches `"validModes": "choco,git"` typos).
+- **R1c (WARN)** -- `name` and `desc`/`description` recommended (searched at top level AND 1-deep inside feature blocks like `phpmyadmin: {...}`).
+- **R2 (FAIL)** -- if `validModes` contains `"choco"`, a `chocoPackage`/`chocoPackageName` must exist somewhere (otherwise choco mode has nothing to install).
+- **R3 (WARN)** -- placeholder values (`""`, `"TODO"`, `"FIXME"`, `"tbd"`, `"..."`) and sub-3-character names rejected.
+- **R4 (WARN)** -- unknown top-level SCALAR keys flagged. Object feature blocks (`phpmyadmin`, `tweaks`, `editions`, etc.) are tolerated as project convention.
+
+### Calibration
+
+The first draft was over-strict (FAIL on missing `name`/`desc` -- 47 of 51 scripts failed because they nest those fields inside feature blocks). Tiered the rules to match the project's real conventions: cross-field consistency stays FAIL, missing-field rules downgraded to WARN. Final baseline: **55 folders, 29 OK, 25 WARN, 0 FAIL** -- linter exits 0, CI proceeds, advisory backlog tracked for incremental cleanup.
+
+### Schema discrimination
+
+Dispatcher folders have explicit `allowedKeys` lists (e.g. `os` allows `clean`, `tempClean`, `choco`, `hibernate`, `longPath`, `addUser`). Folders WITHOUT a `config.json` (e.g. `git-tools`) are listed in an "informational" block, never counted as failure.
+
+### Metadata
+
+- `scripts/version.json` -- bumped to `0.40.5`.
+- `readme.md` -- Changelog badge `v0.40.4 -> v0.40.5`.
+- `scripts/_internal/readme.md` -- documented the new linter alongside the registry summary generator.
+
+### Note on version numbering
+
+Previous chat summary said "v0.40.4" for this work, but v0.40.4 already shipped (gsa --remove/--prune/--list trio). This bump is correctly v0.40.5.
+
 ## [v0.40.4] -- 2026-04-19
 
 ### Added (`gsa --remove`, `gsa --prune`, `gsa --list` audit trio)

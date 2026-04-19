@@ -1,8 +1,8 @@
 # `_internal/` -- repo maintenance scripts
 
 These are NOT user-facing dev tools. They're maintenance scripts the project
-itself uses to keep generated docs / metadata in sync. None of them are
-wired into the registry, the dispatcher, or the keyword map.
+itself uses to keep generated docs / metadata in sync, plus CI quality gates.
+None of them are wired into the registry, the dispatcher, or the keyword map.
 
 ## generate-registry-summary.cjs
 
@@ -63,3 +63,29 @@ correspond to numeric script IDs in the registry.
 The repo's `package.json` declares `"type": "module"`, so `.js` files would
 be parsed as ESM. This script uses `require()` for synchronous file IO and
 zero-dependency simplicity, so it lives as `.cjs`.
+
+---
+
+## lint-config-schemas.cjs
+
+Validates every `scripts/<folder>/config.json` against the project schema.
+Catches real bugs (FAIL -- blocks CI release) and drift (WARN -- advisory).
+
+### Run it
+
+```bash
+node scripts/_internal/lint-config-schemas.cjs
+```
+
+Exit codes: `0` (no FAIL, release proceeds), `1` (FAIL rows, release blocked),
+`2` (linter crashed). GitHub Actions annotations emitted automatically.
+
+### Wired in CI
+
+`.github/workflows/release.yml` runs the linter after the registry-summary
+drift check. FAIL rows abort the release.
+
+### Full spec
+
+See `spec/lint-config-schemas/readme.md` for rules, schema discrimination,
+output format, and how to extend.
