@@ -2,6 +2,27 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.39.7] -- 2026-04-19
+
+### Added (`git-tools` dispatcher + `gsa` subcommand -- Group C)
+
+- **New top-level subcommand `git-tools`** (`scripts/git-tools/`) with its own dispatcher (`run.ps1`), helper folder, and `log-messages.json`. Routed from root `run.ps1` via the bare command `git-tools` (or alias `gittools`).
+- **New action `safe-all`** (`scripts/git-tools/helpers/safe-all.ps1`) -- two-mode helper for fixing `fatal: detected dubious ownership in repository` warnings on Windows:
+  - **Wildcard mode** (default, no args): adds `safe.directory='*'` to global gitconfig once. Idempotent -- detects existing wildcard via `git config --global --get-all safe.directory` and skips with `[ SKIP ]` if already present.
+  - **Per-repo scan mode** (`--scan <path>`): walks `<path>` recursively to depth 4 (override with `--depth N`), finds every `.git` folder, and adds the parent repo path to global `safe.directory` entries individually. Idempotent -- snapshots existing entries once before scanning to avoid N+1 `git config` reads.
+- **Root shortcuts**: `.\run.ps1 gsa`, `.\run.ps1 git-safe-all`, and `.\run.ps1 gittools` all wired into the bare-command dispatcher in root `run.ps1`. `gsa` routes directly to the `safe-all` action; `git-tools` routes to the dispatcher (so `git-tools help`, `git-tools safe-all`, etc. all work).
+- **Flag parsing**: supports `--scan <path>`, `--scan=<path>`, `--depth <n>`, `--depth=<n>`, plus the single-dash variants. Help action: `git-tools help`, `git-tools --help`, `git-tools -h`, or bare `git-tools` with no args.
+- **Pre-flight check**: bails with a clear error (`git command not found in PATH -- install git first (.\run.ps1 install git)`) if `git` isn't on `PATH`. CODE RED compliance: explicit error message + suggested fix.
+- **Logging**: uses `Initialize-Logging -ScriptName "git-safe-all"` and `Save-LogFile -Status ok|fail` like every other script. Log lives under `.logs/`.
+- **Spec doc** (`spec/git-tools/readme.md`) -- documents both modes, flags, when to use wildcard vs scan, verification steps, and notes the planned Group E follow-up (bake `safe.directory=*` into the default gitconfig template in `scripts/07-install-git/`).
+
+### Implementation notes
+
+- Repo paths in scan mode are normalized to forward slashes (`C:/Users/.../repo`) to match git's preferred form on Windows.
+- Scan summary format: `Added {added} repos, {skipped} already present, scanned {total} .git folders in {seconds}s`.
+- Scan mode uses `Get-ChildItem -Filter ".git" -Directory -Recurse -Depth N -Force -ErrorAction SilentlyContinue` -- silently skips permission-denied dirs instead of crashing.
+- Existing-entry snapshot is hashtable-backed (`@{}`) for O(1) lookup per repo.
+
 ## [v0.39.6] -- 2026-04-19
 
 ### Added (`os clean` -- locked-file resilience + independent temp sweep + choco cache cleanup)

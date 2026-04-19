@@ -1,0 +1,25 @@
+{
+  "scriptName": "git-tools",
+  "headers": {
+    "title": "Git Tools",
+    "subtitle": "git config helpers + repo scanning"
+  },
+  "status": {
+    "ok":       "[  OK  ]",
+    "fail":     "[ FAIL ]",
+    "warn":     "[ WARN ]",
+    "info":     "[ INFO ]",
+    "skip":     "[ SKIP ]",
+    "added":    "[ ADD  ]",
+    "scan":     "[ SCAN ]"
+  },
+  "messages": {
+    "wildcardAlready":   "safe.directory '*' already present in global gitconfig",
+    "wildcardAdded":     "Added safe.directory '*' to global gitconfig",
+    "scanStart":         "Scanning '{path}' for .git folders (depth={depth})...",
+    "scanPathMissing":   "Scan path not found: {path}",
+    "scanNoRepos":       "No .git folders found under '{path}'",
+    "scanSummary":       "Added {added} repos, {skipped} already present, scanned {total} .git folders in {seconds}s",
+    "gitMissing":        "git command not found in PATH -- install git first (.\\run.ps1 install git)"
+  }
+}
