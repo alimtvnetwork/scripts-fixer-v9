@@ -237,7 +237,22 @@
     "onenote":           [50],
     "one-note":          [50],
     "lightshot":         [51],
-    "screenshot-tool":   [51]
+    "screenshot-tool":   [51],
+    "os-clean":          ["os:clean"],
+    "osclean":           ["os:clean"],
+    "os-hib-off":        ["os:hib-off"],
+    "hib-off":           ["os:hib-off"],
+    "hibernate-off":     ["os:hib-off"],
+    "no-hibernate":      ["os:hib-off"],
+    "os-flp":            ["os:flp"],
+    "flp":               ["os:flp"],
+    "fix-long-path":     ["os:flp"],
+    "long-path":         ["os:flp"],
+    "longpath":          ["os:flp"],
+    "os-add-user":       ["os:add-user"],
+    "add-user":          ["os:add-user"],
+    "adduser":           ["os:add-user"],
+    "new-user":          ["os:add-user"]
   },
   "modes": {
     "notepad++":         { "33": "install+settings" },
