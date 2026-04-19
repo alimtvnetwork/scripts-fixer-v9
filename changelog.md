@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.39.5] -- 2026-04-19
+
+### Changed (script 50 -- OneNote fallback URL refresh)
+
+- **`scripts/50-install-onenote/config.json`** -- replaced the deprecated Win10 standalone OneNote fwlink (`LinkID=2024522`) with the **Microsoft 365 OneNote (Click-to-Run)** download endpoint (`c2rsetup.officeapps.live.com/c2r/downloadOneNote.aspx`). Microsoft is sunsetting the Win10 standalone OneNote variant, so the fallback now pulls the only OneNote desktop build still being shipped.
+- Added `channel` + `notes` keys to `fallbackDownload` so the source/intent is self-documenting.
+- **`scripts/50-install-onenote/log-messages.json`** -- updated `fallbackDownload` and `fallbackInstalling` log lines to explicitly mention "Microsoft 365 OneNote (Click-to-Run)" so logs make the choice obvious.
+- **`scripts/50-install-onenote/helpers/onenote.ps1`** -- expanded the `Install-OneNoteFallback` doc-comment to explain the URL change + Win10 OneNote sunset rationale.
+
 ## [v0.39.4] -- 2026-04-19
 
 ### Added (2025 Batch -- Group D: `profile` dispatcher + 6 install profiles + new keyword convention)
