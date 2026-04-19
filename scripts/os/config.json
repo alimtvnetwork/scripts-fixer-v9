@@ -9,7 +9,6 @@
     "clearPSReadLineHistory": true,
     "clearCurrentSessionHistory": true,
     "clearChocoCache": true,
-    "tempCleanCascade": true,
     "lockedFilesMaxReport": 50
   },
   "tempClean": {

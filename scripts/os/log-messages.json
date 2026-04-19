@@ -25,7 +25,6 @@
     "lockedHeader": "Locked / un-removable files (skipped, will retry on next reboot or after closing the holding process)",
     "lockedRow": "  {path}  --  {reason}",
     "lockedTruncated": "  ... and {more} more locked file(s) not shown (limit: {limit}). See log file for full list.",
-    "cascadingTempClean": "Step {n}: cascading 'os temp-clean' as a sub-step ...",
     "chocoCleanerFound": "choco-cleaner detected -- running it as part of choco cache cleanup",
     "chocoCleanerNotFound": "choco-cleaner not installed -- using manual choco cache sweep only",
     "chocoCleanerFailed": "choco-cleaner exited with errors: {error}",
