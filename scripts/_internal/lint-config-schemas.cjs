@@ -68,7 +68,7 @@ function ghaError(file, msg) {
 const DISPATCHER_SCHEMAS = {
   "12-install-all-dev-tools": {
     label: "All-dev-tools dispatcher",
-    allowedKeys: ["_comment", "devDir", "groups", "promptOnEmpty", "questionnaire"],
+    allowedKeys: ["_comment", "devDir", "groups", "promptOnEmpty", "questionnaire", "scripts", "sequence"],
   },
   "audit": {
     label: "Audit dispatcher",
