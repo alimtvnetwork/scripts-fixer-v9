@@ -1,6 +1,6 @@
 {
   "scriptName": "Models Orchestrator",
-  "description": "Pick a model backend (llama.cpp or Ollama), then browse, filter, and install AI models. Supports CSV direct install, interactive picker, and uninstall.",
+  "description": "Pick a model backend (llama.cpp or Ollama), then browse, filter, and install AI models. Supports CSV direct install, interactive picker, live Ollama Hub search, and uninstall.",
   "help": {
     "commands": {
       "(no args)": "Interactive: pick backend, then open the backend's picker",
@@ -8,13 +8,10 @@
       "list": "Show all known models (both backends) with ids",
       "list llama": "Show only llama.cpp catalog",
       "list ollama": "Show only Ollama defaults",
-<<<<<<< HEAD
-      "search <query>": "Search Ollama Hub (ollama.com/library) live and pick models to pull"
-=======
+      "search <query>": "Search Ollama Hub (ollama.com/library) live and pick models to pull",
       "uninstall": "List locally installed models from BOTH backends, multi-select, delete",
       "uninstall llama": "Uninstall picker scoped to llama.cpp GGUF files only",
       "uninstall ollama": "Uninstall picker scoped to Ollama daemon models only"
->>>>>>> lovable-sync-1776538523
     },
     "parameters": {
       "-Backend": "Force a backend: llama-cpp or ollama (skips backend prompt; also scopes uninstall)",
@@ -31,15 +28,12 @@
       ".\\run.ps1 models -Backend ollama -Install llama3.2,qwen2.5-coder",
       ".\\run.ps1 models list",
       ".\\run.ps1 models list llama",
-<<<<<<< HEAD
       ".\\run.ps1 models search llama",
-      ".\\run.ps1 models search phi3"
-=======
+      ".\\run.ps1 models search phi3",
       ".\\run.ps1 models uninstall",
       ".\\run.ps1 models uninstall ollama",
       ".\\run.ps1 models rm",
       ".\\run.ps1 models uninstall -Force"
->>>>>>> lovable-sync-1776538523
     ]
   },
   "messages": {
@@ -56,12 +50,10 @@
     "csvUnknown": "  [MISS] {id} -- not found in any catalog",
     "csvNoneFound": "None of the requested model ids matched any catalog. Use 'list' to see available ids.",
     "listHeader": "Available models ({backend}):",
-<<<<<<< HEAD
     "searchNoResults": "Ollama Hub returned no results. Try a different query or check your connection.",
     "searchAborted": "Search aborted by user.",
     "searchSkipped": "No models selected from search results -- nothing to pull.",
     "searchDispatching": "  Pulling from Ollama Hub: {slugs}",
-=======
     "uninstallScanning": "Scanning local installations across both backends...",
     "uninstallNothing": "No locally installed models found. Nothing to uninstall.",
     "uninstallAborted": "Uninstall aborted by user. Nothing was deleted.",
@@ -69,7 +61,6 @@
     "uninstallForceSkip": "  -Force flag set: skipping confirmation prompt.",
     "uninstallPartial": "Uninstall finished with one or more failures -- review the log above.",
     "uninstallComplete": "Uninstall complete.",
->>>>>>> lovable-sync-1776538523
     "complete": "Models setup complete."
   }
 }
