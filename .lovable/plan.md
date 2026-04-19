@@ -1,7 +1,7 @@
 # Project Plan -- Dev Tools Setup
 
-## Current Version: v0.36.0
-## Last Updated: 2026-04-18
+## Current Version: v0.38.0
+## Last Updated: 2026-04-19
 
 ---
 
@@ -10,6 +10,11 @@
 _None._
 
 ## ⏳ Pending / Next Steps
+
+### Bootstrap follow-ups
+- [ ] Mirror CWD-aware target resolution in `install.sh` (currently still hardcoded to `$HOME/scripts-fixer`)
+- [ ] Mirror `-DryRun` as `--dry-run` in `install.sh`
+- [ ] End-to-end verify install.ps1 from D:\, C:\Users\X, C:\Windows\System32 (fallback), and inside an existing checkout
 
 ### Documentation & Quality
 - [ ] Verify `-Version` flag end-to-end on real Windows + Linux shells
@@ -30,6 +35,18 @@ _None._
 ---
 
 ## ✅ Completed
+
+### v0.38.0 (2026-04-19)
+- [x] `install.ps1` CWD-aware target resolution (CWD\scripts-fixer when safe, sibling reuse, USERPROFILE fallback for protected dirs/drive roots)
+- [x] `install.ps1` final action changed: launches `.\run.ps1` with no args (was `-d` straight into Install All Dev Tools)
+- [x] New helpers `Test-CwdIsSafe` + `Resolve-TargetFolder` with reason-tagged `[LOCATE]` logging
+
+### v0.37.1 (2026-04-19)
+- [x] `-DryRun` flag for `install.ps1` — magenta `[DRYRUN] ... (skipped)` lines for every mutating step
+
+### v0.37.0 (2026-04-19)
+- [x] `install.ps1` + `install.sh` self-relocation flow (cd-out, TEMP staging fallback, `[GIT]` URL log)
+- [x] Stderr-noise fix (no more red `NativeCommandError` on successful clones)
 
 ### v0.36.0 (2026-04-18)
 - [x] `-Version` / `--version` diagnostic flag for `install.ps1` + `install.sh`
