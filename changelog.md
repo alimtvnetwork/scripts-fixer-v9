@@ -2,6 +2,30 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.37.0] -- 2026-04-19
+
+### Fixed
+
+- **`install.ps1` no longer prints red `NativeCommandError` noise on a successful clone.** Git writes its `Cloning into '...'` progress to stderr, and the previous `2>&1` stream merge promoted those lines to PowerShell `RemoteException` records (rendered as fatal errors) even when `git clone` exited 0. The bootstrap now captures stderr to a temp file with `2>$errFile`, runs `git clone --quiet`, and only surfaces the captured stderr when `$LASTEXITCODE -ne 0`.
+- **`install.sh` mirrors the same stderr fix.** Captures git stderr via `mktemp`, uses `--quiet`, prints captured output (indented via `sed`) only on non-zero exit.
+
+### Added
+
+- **Self-relocation clone flow in `install.ps1` and `install.sh`** -- when the user re-runs the one-liner from **inside** `~/scripts-fixer` or from a parent directory that already contains a `scripts-fixer` subfolder, the bootstrap now:
+  1. Logs `[LOCATE]` with current directory + target path so the user sees exactly what is detected.
+  2. `cd`s out to the parent if the shell is sitting inside the target (releases the directory handle that was causing `Remove-Item` / `rm -rf` to fail on Windows).
+  3. Attempts a safe removal of the target folder (PowerShell clears read-only attributes on git pack files first; bash uses `rm -rf`).
+  4. **If removal succeeds** -- clones directly into the final target path.
+  5. **If removal fails** (file lock, perms, NFS, etc.) -- falls back to staging the clone in `$env:TEMP\scripts-fixer-bootstrap-<timestamp>` (PowerShell) or `${TMPDIR:-/tmp}/scripts-fixer-bootstrap-<timestamp>` (bash), then `Copy-Item -Recurse -Force` / `cp -a "$TEMP_DIR/." "$FOLDER/"` overlays the contents into the locked target. Best-effort cleanup of the temp staging dir after.
+  6. Logs every step with `[LOCATE]` / `[CD]` / `[CLEAN]` / `[GIT]` / `[OK]` / `[INFO]` / `[TEMP]` / `[COPY]` / `[ERROR]` / `[WARN]` tags. Every log line includes the **exact path** involved per the project's CODE RED file-path-error rule.
+- **Pre-clone URL log** -- both bootstraps now print `[GIT] Cloning from : <repo URL>` and `[GIT] Cloning into : <target path>` immediately before `git clone`, so the user can see exactly which `-vN` repo is about to be pulled.
+- New helper functions: `Invoke-GitClone` + `Remove-FolderSafe` in `install.ps1`, and `invoke_git_clone` + `remove_folder_safe` in `install.sh`.
+
+### Documentation
+
+- **`spec/install-bootstrap/readme.md`** gained a "Self-Relocation Clone Flow" section covering the stderr fix, detection logic, branch behaviour, log format, a 6-row test matrix, and a PowerShell-vs-bash equivalence table so both implementations stay in sync.
+- New memory entry: `mem://features/install-self-relocation` documenting the two-bug fix and required logging tags for future maintainers.
+
 ## [v0.36.0] -- 2026-04-18
 
 ### Added
