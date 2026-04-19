@@ -49,24 +49,26 @@ function Show-OsHelp {
     Write-Host "    clean" -ForegroundColor Green
     Write-Host "      Full Windows housekeeping sweep. Wipes:" -ForegroundColor DarkGray
     Write-Host "        1. C:\Windows\SoftwareDistribution\Download   (Windows Update cache)" -ForegroundColor DarkGray
-    Write-Host "        2. ALL temp directories (cascades into 'temp-clean'):" -ForegroundColor DarkGray
-    Write-Host "             - %TEMP%   - C:\Windows\Temp   - %LOCALAPPDATA%\Temp" -ForegroundColor DarkGray
-    Write-Host "             - C:\Users\<each>\AppData\Local\Temp     - %TEMP%\chocolatey" -ForegroundColor DarkGray
-    Write-Host "        3. Chocolatey cache (lib-bad, lib-bkp, *.backup, *.nupkg cache)" -ForegroundColor DarkGray
+    Write-Host "        2. %TEMP%                                     (current user temp)" -ForegroundColor DarkGray
+    Write-Host "        3. C:\Windows\Temp                            (system temp)" -ForegroundColor DarkGray
+    Write-Host "        4. %LOCALAPPDATA%\Temp                        (skipped if same as %TEMP%)" -ForegroundColor DarkGray
+    Write-Host "        5. C:\Users\<each>\AppData\Local\Temp         (per-user, excludes Public/Default/etc.)" -ForegroundColor DarkGray
+    Write-Host "        6. Chocolatey cache (lib-bad, lib-bkp, *.backup, *.nupkg, %TEMP%\chocolatey)" -ForegroundColor DarkGray
     Write-Host "             + runs choco-cleaner if installed. LIVE choco install untouched." -ForegroundColor DarkGray
-    Write-Host "        4. All Windows event logs (wevtutil cl)" -ForegroundColor DarkGray
-    Write-Host "        5. PSReadLine command history file" -ForegroundColor DarkGray
-    Write-Host "        6. Current session command history" -ForegroundColor DarkGray
+    Write-Host "        7. All Windows event logs (wevtutil cl)" -ForegroundColor DarkGray
+    Write-Host "        8. PSReadLine command history file" -ForegroundColor DarkGray
+    Write-Host "        9. Current session command history" -ForegroundColor DarkGray
     Write-Host "      Locked files (open by chrome.exe / OneDrive etc.) are SKIPPED, not crashed on." -ForegroundColor DarkGray
     Write-Host "      A [LOCKED FILES] section at the end lists every skipped file + the OS reason." -ForegroundColor DarkGray
     Write-Host "      Reports MB / GB freed per category and totals." -ForegroundColor DarkGray
-    Write-Host "      Flags:  -Yes  skip prompt    -NoChoco  skip choco cache    -NoTempCascade  skip temp" -ForegroundColor DarkGray
+    Write-Host "      Flags:  -Yes  skip prompt    -NoChoco  skip choco cache    -NoTemp  skip temp dirs" -ForegroundColor DarkGray
     Write-Host ""
     Write-Host "    temp-clean" -ForegroundColor Green
-    Write-Host "      Subset of 'clean' -- temp directories ONLY (faster, no event logs / no choco / no WU)." -ForegroundColor DarkGray
-    Write-Host "      Targets: %TEMP%, C:\Windows\Temp, %LOCALAPPDATA%\Temp, all per-user Temp," -ForegroundColor DarkGray
-    Write-Host "               %TEMP%\chocolatey. Same locked-file reporting as 'clean'." -ForegroundColor DarkGray
-    Write-Host "      Use this for a quick safe sweep when you don't want to clear event logs." -ForegroundColor DarkGray
+    Write-Host "      Independent helper -- temp directories ONLY (no event logs / no choco cache / no WU)." -ForegroundColor DarkGray
+    Write-Host "      Same target list as 'clean' steps 2-5 + choco TEMP. Same locked-file reporting." -ForegroundColor DarkGray
+    Write-Host "      Use this for a quick safe sweep when you don't want to clear event logs," -ForegroundColor DarkGray
+    Write-Host "      OR pair with 'os clean -NoTemp' for a clean-without-temp run." -ForegroundColor DarkGray
+    Write-Host "      NOTE: 'clean' and 'temp-clean' are independent code paths (Option B) -- no internal call." -ForegroundColor DarkGray
     Write-Host "      Flags:  -Yes  skip prompt    -NoChoco  skip choco TEMP" -ForegroundColor DarkGray
     Write-Host ""
     Write-Host "    hib-off    (alias: hibernate-off)" -ForegroundColor Green
@@ -87,7 +89,7 @@ function Show-OsHelp {
     Write-Host ""
     Write-Host "  NOTES" -ForegroundColor Yellow
     Write-Host "    - All actions require Administrator elevation; the helper re-launches if needed." -ForegroundColor DarkGray
-    Write-Host "    - 'clean' internally cascades 'temp-clean' for single source of truth on temp logic." -ForegroundColor DarkGray
+    Write-Host "    - 'clean' and 'temp-clean' are INDEPENDENT code paths -- each maintains its own temp logic." -ForegroundColor DarkGray
     Write-Host "    - 'add-user' password is passed as plain CLI arg (visible in shell history -- accepted risk)." -ForegroundColor DarkGray
     Write-Host ""
 }

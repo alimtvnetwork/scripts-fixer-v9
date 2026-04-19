@@ -1,29 +1,37 @@
 <#
 .SYNOPSIS
-    os clean -- Full Windows housekeeping sweep.
+    os clean -- Full Windows housekeeping sweep (Option B: independent of temp-clean).
 
 .DESCRIPTION
-    Wipes:
+    Wipes (each step is its own try/catch with locked-file accumulation):
       Step 1. C:\Windows\SoftwareDistribution\Download  (Windows Update cache)
-      Step 2. CASCADES into `os temp-clean` (sweeps %TEMP%, C:\Windows\Temp,
-              %LOCALAPPDATA%\Temp, all per-user Temp dirs, choco TEMP)
-      Step 3. Chocolatey cache (lib-bad, lib-bkp, *.backup, *.nupkg cache,
-              and runs choco-cleaner if installed). LIVE choco install untouched.
-      Step 4. All Windows event logs (wevtutil cl)
-      Step 5. PSReadLine command history file
-      Step 6. Current session command history (Clear-History)
+      Step 2. $env:TEMP                                 (current user temp)
+      Step 3. C:\Windows\Temp                           (system temp)
+      Step 4. $env:LOCALAPPDATA\Temp                    (skipped if same as Step 2)
+      Step 5. Per-user Temp dirs under C:\Users\*\AppData\Local\Temp
+              (excludes Public/Default/Default User/All Users/WDAGUtilityAccount + current user)
+      Step 6. Chocolatey cache (lib-bad, lib-bkp, *.backup, *.nupkg cache,
+              %TEMP%\chocolatey, runs choco-cleaner if installed).
+              LIVE choco install (bin/, lib/<pkg>/tools, config, logs) is untouched.
+      Step 7. All Windows event logs (wevtutil cl)
+      Step 8. PSReadLine command history file
+      Step 9. Current session command history (Clear-History)
+
+    NOTE: This is INDEPENDENT of `os temp-clean` -- both helpers contain their
+    own temp-sweep logic so each can be run / maintained / debugged in isolation.
+    Drift risk is accepted in exchange for no internal coupling.
 
     Locked files are CAUGHT (not crashed on), accumulated, and reported in a
-    dedicated [LOCKED FILES] section at the end with the OS reason.
+    dedicated [ LOCKED FILES ] section at the end with the OS reason.
 
     CODE RED: every file/path failure logs the exact path + reason.
 #>
 param(
     [switch]$Yes,
     [switch]$Force,
-    [switch]$IncludeWindowsTemp,   # legacy: kept for back-compat. Now always-on via temp-clean cascade.
+    [switch]$IncludeWindowsTemp,   # legacy: kept for back-compat (always-on now).
     [switch]$NoChoco,
-    [switch]$NoTempCascade
+    [switch]$NoTemp                # NEW: opt-out of temp dirs entirely (use `os temp-clean` instead).
 )
 
 $ErrorActionPreference = "Continue"
@@ -49,7 +57,7 @@ if ($Yes)                { $forwardArgs += "-Yes" }
 if ($Force)              { $forwardArgs += "-Force" }
 if ($IncludeWindowsTemp) { $forwardArgs += "-IncludeWindowsTemp" }
 if ($NoChoco)            { $forwardArgs += "-NoChoco" }
-if ($NoTempCascade)      { $forwardArgs += "-NoTempCascade" }
+if ($NoTemp)             { $forwardArgs += "-NoTemp" }
 
 $isAdminOk = Assert-Admin -ScriptPath $MyInvocation.MyCommand.Definition `
                           -ForwardArgs $forwardArgs `
@@ -70,6 +78,7 @@ if (-not $confirmed) {
 $results   = @()
 $allLocked = @()
 
+# ---------- Local helpers (independent copy -- Option B) ----------
 function Get-DirSize {
     param([string]$Path)
     try {
@@ -89,9 +98,11 @@ function Get-LockReason {
     if ($msg -match "being used by another process|in use") { return "in use by another process" }
     if ($msg -match "denied|UnauthorizedAccess")            { return "access denied (locked or protected)" }
     if ($msg -match "sharing violation")                    { return "sharing violation (open handle)" }
+    if ($msg -match "Could not find")                       { return "vanished mid-sweep (already gone)" }
     return $msg.Split("`n")[0].Trim()
 }
 
+# Top-level contents wipe (used by Step 1 -- SoftwareDistribution).
 function Clear-FolderContents {
     param([string]$Path, [string]$Label, [int]$StepNum)
 
@@ -130,47 +141,132 @@ function Clear-FolderContents {
     return $r
 }
 
+# Recursive depth-first sweep (used by temp dir steps).
+function Invoke-DeepTempSweep {
+    param([string]$Path, [string]$Label, [int]$StepNum)
+
+    $r = [ordered]@{
+        Step = $StepNum; Label = $Label; Path = $Path; Count = 0; Bytes = 0;
+        Locked = 0; LockedDetails = @(); Status = "ok"
+    }
+
+    if (-not (Test-Path $Path)) {
+        Write-Log "Step ${StepNum}: ${Label} -- path not present: ${Path}" -Level "skip"
+        $r.Status = "skip"
+        return $r
+    }
+
+    $sizeBefore = Get-DirSize -Path $Path
+
+    $allItems = @()
+    try {
+        $allItems = Get-ChildItem -Path $Path -Recurse -Force -ErrorAction SilentlyContinue
+    } catch {
+        Write-Log "Step ${StepNum} enumerate failed at ${Path}: $($_.Exception.Message)" -Level "warn"
+    }
+
+    $files = $allItems | Where-Object { -not $_.PSIsContainer }
+    $dirs  = $allItems | Where-Object {  $_.PSIsContainer } | Sort-Object { $_.FullName.Length } -Descending
+
+    $removed = 0
+    foreach ($f in $files) {
+        try {
+            Remove-Item -LiteralPath $f.FullName -Force -ErrorAction Stop
+            $removed++
+        } catch {
+            $reason = Get-LockReason -Ex $_.Exception
+            $r.Locked++
+            $r.LockedDetails += @{ Path = $f.FullName; Reason = $reason }
+            Write-Log "Step ${StepNum} locked at $($f.FullName): ${reason}" -Level "warn"
+        }
+    }
+    foreach ($d in $dirs) {
+        try {
+            if (Test-Path $d.FullName) {
+                Remove-Item -LiteralPath $d.FullName -Recurse -Force -ErrorAction Stop
+                $removed++
+            }
+        } catch {
+            $reason = Get-LockReason -Ex $_.Exception
+            $r.Locked++
+            $r.LockedDetails += @{ Path = $d.FullName; Reason = $reason }
+            Write-Log "Step ${StepNum} locked dir at $($d.FullName): ${reason}" -Level "warn"
+        }
+    }
+
+    $sizeAfter = Get-DirSize -Path $Path
+    $r.Bytes = [long]([Math]::Max(0, $sizeBefore - $sizeAfter))
+    $r.Count = $removed
+    if ($r.Locked -gt 0) { $r.Status = "warn" }
+
+    $mb = Format-Bytes -Bytes $r.Bytes
+    Write-Log "Step ${StepNum} done: ${Label} -- removed ${removed} item(s), freed ${mb} MB, locked $($r.Locked)" -Level $(if ($r.Locked -eq 0) { "success" } else { "warn" })
+    return $r
+}
+
 # ==================== Step 1: Windows Update cache ====================
 $results += Clear-FolderContents -Path $config.clean.softwareDistribution -Label "Windows Update cache" -StepNum 1
 
-# ==================== Step 2: cascade os temp-clean ====================
-if ($config.clean.tempCleanCascade -and -not $NoTempCascade) {
-    $msg = ($logMessages.clean.cascadingTempClean -replace '\{n\}', '2')
-    Write-Log $msg -Level "info"
-    try {
-        $tempResult = & (Join-Path $helpersDir "temp-clean.ps1") -Yes -ReturnResults -NoConfirm
-        if ($tempResult -and $tempResult.Results) {
-            # Re-number cascaded steps so they don't collide with our outer numbering
-            $offset = 1
-            foreach ($r in $tempResult.Results) {
-                $r2 = [ordered]@{
-                    Step = "2.$offset"; Label = "[temp-clean] $($r.Label)"; Count = $r.Count;
-                    Bytes = $r.Bytes; Locked = $r.Locked; LockedDetails = $r.LockedDetails;
-                    Status = $r.Status
-                }
-                $results += $r2
-                $offset++
-            }
-            if ($tempResult.AllLocked) { $allLocked += $tempResult.AllLocked }
-        }
-    } catch {
-        Write-Log "Step 2 cascade error (temp-clean): $($_.Exception.Message)" -Level "fail"
-        $results += @{ Step = 2; Label = "Temp directories cascade"; Count = 0; Bytes = 0; Locked = 0; LockedDetails = @(); Status = "fail" }
+# ==================== Steps 2-5: temp dirs (inline, independent of temp-clean) ====================
+if ($NoTemp) {
+    Write-Log "Steps 2-5: temp directory sweep -- skipped (-NoTemp). Use 'os temp-clean' separately if needed." -Level "skip"
+} else {
+    # Step 2: $env:TEMP
+    $tempPath = [Environment]::GetEnvironmentVariable($config.clean.tempEnvVar)
+    if ([string]::IsNullOrWhiteSpace($tempPath)) { $tempPath = $env:TEMP }
+    $results += Invoke-DeepTempSweep -Path $tempPath -Label "User TEMP ($tempPath)" -StepNum 2
+
+    # Step 3: C:\Windows\Temp
+    $results += Invoke-DeepTempSweep -Path $config.clean.windowsTemp -Label "Windows TEMP" -StepNum 3
+
+    # Step 4: $env:LOCALAPPDATA\Temp (only if different from Step 2)
+    $localTemp = $null
+    $lad = [Environment]::GetEnvironmentVariable("LOCALAPPDATA")
+    if (-not [string]::IsNullOrWhiteSpace($lad)) {
+        $localTemp = Join-Path $lad "Temp"
     }
-} else {
-    Write-Log "Step 2: temp-clean cascade disabled -- skipping" -Level "skip"
+    if ($localTemp -and ($localTemp.ToLower() -ne $tempPath.ToLower())) {
+        $results += Invoke-DeepTempSweep -Path $localTemp -Label "LocalAppData\Temp" -StepNum 4
+    } else {
+        Write-Log "Step 4: LocalAppData\Temp -- same path as user TEMP, skipped to avoid double-sweep" -Level "skip"
+        $results += @{ Step = 4; Label = "LocalAppData\Temp (same as user TEMP)"; Count = 0; Bytes = 0; Locked = 0; LockedDetails = @(); Status = "skip" }
+    }
+
+    # Step 5: per-user Temp sweep
+    $perUserRoot = "C:\Users"
+    if (Test-Path $perUserRoot) {
+        $userDirs = @()
+        try {
+            $userDirs = Get-ChildItem -Path $perUserRoot -Directory -Force -ErrorAction SilentlyContinue |
+                        Where-Object { $_.Name -notin @("Public", "Default", "Default User", "All Users", "WDAGUtilityAccount") -and $_.Name -ine $env:USERNAME }
+        } catch {}
+
+        $sub = 1
+        foreach ($u in $userDirs) {
+            $perTemp = Join-Path $u.FullName "AppData\Local\Temp"
+            if (-not (Test-Path $perTemp)) { continue }
+            $stepLabel = "5.$sub"
+            $r = Invoke-DeepTempSweep -Path $perTemp -Label "Per-user Temp: $($u.Name)" -StepNum $stepLabel
+            $results += $r
+            $sub++
+        }
+        if ($sub -eq 1) {
+            Write-Log "Step 5: per-user Temp sweep -- no other user profiles found under ${perUserRoot}" -Level "skip"
+            $results += @{ Step = 5; Label = "Per-user Temp (none found)"; Count = 0; Bytes = 0; Locked = 0; LockedDetails = @(); Status = "skip" }
+        }
+    }
 }
 
-# ==================== Step 3: Chocolatey cache ====================
+# ==================== Step 6: Chocolatey cache ====================
 if ($config.clean.clearChocoCache -and -not $NoChoco) {
-    $chocoRes = Invoke-ChocoCacheClean -Config $config -LogMessages $logMessages -StepNum 3
+    $chocoRes = Invoke-ChocoCacheClean -Config $config -LogMessages $logMessages -StepNum 6
     $results += $chocoRes
-    if ($chocoRes.LockedDetails) { $allLocked += $chocoRes.LockedDetails }
 } else {
-    Write-Log "Step 3: Chocolatey cache cleanup -- skipped (NoChoco or disabled in config)" -Level "skip"
+    Write-Log "Step 6: Chocolatey cache cleanup -- skipped (-NoChoco or disabled in config)" -Level "skip"
+    $results += @{ Step = 6; Label = "Chocolatey cache (skipped)"; Count = 0; Bytes = 0; Locked = 0; LockedDetails = @(); Status = "skip" }
 }
 
-# ==================== Step 4: Event logs ====================
+# ==================== Step 7: Event logs ====================
 if ($config.clean.clearEventLogs) {
     $logCount = 0
     $logErrors = 0
@@ -187,15 +283,15 @@ if ($config.clean.clearEventLogs) {
             }
         }
         $status = if ($logErrors -eq 0) { "ok" } else { "warn" }
-        Write-Log "Step 4 done: Cleared $logCount event log(s) (errors: $logErrors)" -Level $(if ($logErrors -eq 0) { "success" } else { "warn" })
-        $results += @{ Step = 4; Label = "Windows event logs"; Count = $logCount; Bytes = 0; Locked = 0; LockedDetails = @(); Status = $status }
+        Write-Log "Step 7 done: Cleared $logCount event log(s) (errors: $logErrors)" -Level $(if ($logErrors -eq 0) { "success" } else { "warn" })
+        $results += @{ Step = 7; Label = "Windows event logs"; Count = $logCount; Bytes = 0; Locked = 0; LockedDetails = @(); Status = $status }
     } catch {
-        Write-Log "Step 4 error: wevtutil failed: $($_.Exception.Message)" -Level "fail"
-        $results += @{ Step = 4; Label = "Windows event logs"; Count = 0; Bytes = 0; Locked = 0; LockedDetails = @(); Status = "fail" }
+        Write-Log "Step 7 error: wevtutil failed: $($_.Exception.Message)" -Level "fail"
+        $results += @{ Step = 7; Label = "Windows event logs"; Count = 0; Bytes = 0; Locked = 0; LockedDetails = @(); Status = "fail" }
     }
 }
 
-# ==================== Step 5: PSReadLine history ====================
+# ==================== Step 8: PSReadLine history ====================
 if ($config.clean.clearPSReadLineHistory) {
     $historyPath = $null
     try {
@@ -203,38 +299,37 @@ if ($config.clean.clearPSReadLineHistory) {
         if ($opt) { $historyPath = $opt.HistorySavePath }
     } catch {}
     if ([string]::IsNullOrWhiteSpace($historyPath)) {
-        Write-Log "Step 5: PSReadLine history path not available -- skipped" -Level "skip"
-        $results += @{ Step = 5; Label = "PSReadLine history"; Count = 0; Bytes = 0; Locked = 0; LockedDetails = @(); Status = "skip" }
+        Write-Log "Step 8: PSReadLine history path not available -- skipped" -Level "skip"
+        $results += @{ Step = 8; Label = "PSReadLine history"; Count = 0; Bytes = 0; Locked = 0; LockedDetails = @(); Status = "skip" }
     } else {
         $sizeBefore = if (Test-Path $historyPath) { (Get-Item $historyPath).Length } else { 0 }
         try {
             if (Test-Path $historyPath) {
                 Remove-Item -LiteralPath $historyPath -Force -ErrorAction Stop
-                Write-Log "Step 5 done: Removed PSReadLine history at $historyPath ($(Format-Bytes $sizeBefore) MB)" -Level "success"
-                $results += @{ Step = 5; Label = "PSReadLine history"; Count = 1; Bytes = $sizeBefore; Locked = 0; LockedDetails = @(); Status = "ok" }
+                Write-Log "Step 8 done: Removed PSReadLine history at $historyPath ($(Format-Bytes $sizeBefore) MB)" -Level "success"
+                $results += @{ Step = 8; Label = "PSReadLine history"; Count = 1; Bytes = $sizeBefore; Locked = 0; LockedDetails = @(); Status = "ok" }
             } else {
-                Write-Log "Step 5: PSReadLine history file not present at $historyPath" -Level "skip"
-                $results += @{ Step = 5; Label = "PSReadLine history"; Count = 0; Bytes = 0; Locked = 0; LockedDetails = @(); Status = "skip" }
+                Write-Log "Step 8: PSReadLine history file not present at $historyPath" -Level "skip"
+                $results += @{ Step = 8; Label = "PSReadLine history"; Count = 0; Bytes = 0; Locked = 0; LockedDetails = @(); Status = "skip" }
             }
         } catch {
             $reason = Get-LockReason -Ex $_.Exception
-            Write-Log "Step 5 error at ${historyPath}: ${reason}" -Level "fail"
-            $results += @{ Step = 5; Label = "PSReadLine history"; Count = 0; Bytes = 0; Locked = 1;
+            Write-Log "Step 8 error at ${historyPath}: ${reason}" -Level "fail"
+            $results += @{ Step = 8; Label = "PSReadLine history"; Count = 0; Bytes = 0; Locked = 1;
                            LockedDetails = @(@{ Path = $historyPath; Reason = $reason }); Status = "warn" }
-            $allLocked += @{ Path = $historyPath; Reason = $reason }
         }
     }
 }
 
-# ==================== Step 6: Current session history ====================
+# ==================== Step 9: Current session history ====================
 if ($config.clean.clearCurrentSessionHistory) {
     try {
         Clear-History -ErrorAction SilentlyContinue
-        Write-Log "Step 6 done: Cleared current session history" -Level "success"
+        Write-Log "Step 9 done: Cleared current session history" -Level "success"
     } catch {}
 }
 
-# ==================== Aggregate locked from outer steps ====================
+# ==================== Aggregate locked from all steps ====================
 foreach ($r in $results) {
     if ($r.LockedDetails -and $r.LockedDetails.Count -gt 0) {
         $allLocked += $r.LockedDetails
@@ -269,7 +364,6 @@ Write-Host ("    TOTAL freed: {0} MB ({1} GB)  items: {2}  locked: {3}" `
 
 # ==================== Locked files section ====================
 if ($allLocked.Count -gt 0) {
-    # De-dup by path
     $unique = @{}
     foreach ($lk in $allLocked) {
         if (-not $unique.ContainsKey($lk.Path)) {
