@@ -25,6 +25,7 @@ Bootstrap (install.ps1): CWD-aware target (CWD\scripts-fixer when safe, else USE
 - [Questionnaire](mem://features/questionnaire) — Questionnaire system for script 12
 - [Resolved folder](mem://features/resolved-folder) — .resolved/ runtime state persistence
 - [Shared helpers](mem://features/shared-helpers) — Shared PowerShell helper modules
+- [2025 batch spec](mem://features/2025-batch) — Spec for scripts 47-51, os/gsa subcommands, 5 install profiles (awaiting sign-off)
 - [Model picker filters](mem://features/model-picker-filters) — 4-filter chain (RAM, Size, Speed, Capability) with re-indexing
 - [Path parameter](mem://features/path-parameter) — Every run.ps1 accepts -Path to override dev directory
 - [Uninstall command](mem://features/uninstall-command) — Every run.ps1 supports uninstall subcommand

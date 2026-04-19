@@ -7,7 +7,12 @@
 
 ## 🔄 In Progress
 
-_None._
+### 2025 Batch (spec only -- awaiting sign-off)
+- [ ] Spec written: `spec/2025-batch/readme.md` + 12 subdocs (`01-*.md` ... `12-*.md`)
+- [ ] ConEmu XML copied to `settings/06 - conemu/ConEmu.xml`
+- [ ] Memory file: `.lovable/memory/features/2025-batch.md`
+- [ ] **Awaiting user sign-off before implementation**
+- [ ] Implementation order: Group A (47-51) -> Group B (os) -> Group C (gsa) -> Group D (profiles) -> Group E (polish + v0.40.0)
 
 ## ⏳ Pending / Next Steps
 
