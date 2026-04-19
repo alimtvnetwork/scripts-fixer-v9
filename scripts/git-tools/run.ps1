@@ -9,7 +9,9 @@
     .\run.ps1 gsa                                  # safe.directory='*' (wildcard)
     .\run.ps1 gsa --scan C:\Users\Alim\GitHub      # add each repo individually
     .\run.ps1 gsa --scan D:\code --depth 6         # custom recursion depth
+    .\run.ps1 gsa --list                           # audit current entries
     .\run.ps1 git-tools safe-all
+    .\run.ps1 git-tools list
     .\run.ps1 git-tools help
 #>
 param(
@@ -38,8 +40,15 @@ function Show-GitToolsHelp {
     Write-Host "        Default (no args)  -> safe.directory='*' (one wildcard, idempotent)" -ForegroundColor DarkGray
     Write-Host "        --scan <path>      -> walks <path> recursively, adds each .git repo" -ForegroundColor DarkGray
     Write-Host "                              parent path individually (idempotent)" -ForegroundColor DarkGray
+    Write-Host "        --list             -> audit mode: print all entries (no writes)" -ForegroundColor DarkGray
     Write-Host "      Flags:  --scan <path>     repo-discovery root" -ForegroundColor DarkGray
     Write-Host "              --depth <n>       recursion depth (default 4)" -ForegroundColor DarkGray
+    Write-Host "              --list            audit-only, prints sorted/deduped entries" -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "    list       (alias: --list, audit)" -ForegroundColor Green
+    Write-Host "      Shortcut for 'safe-all --list'. Prints every safe.directory entry" -ForegroundColor DarkGray
+    Write-Host "      from global gitconfig, sorted + deduped, with wildcard / per-repo" -ForegroundColor DarkGray
+    Write-Host "      breakdown and duplicate count. Read-only." -ForegroundColor DarkGray
     Write-Host ""
     Write-Host "    help       (alias: --help, -h)" -ForegroundColor Green
     Write-Host "      Show this help." -ForegroundColor DarkGray
@@ -48,6 +57,7 @@ function Show-GitToolsHelp {
     Write-Host "    .\run.ps1 gsa                                  # wildcard once" -ForegroundColor DarkGray
     Write-Host "    .\run.ps1 gsa --scan C:\Users\Alim\GitHub      # per-repo entries" -ForegroundColor DarkGray
     Write-Host "    .\run.ps1 gsa --scan D:\code --depth 6" -ForegroundColor DarkGray
+    Write-Host "    .\run.ps1 gsa --list                           # audit what's trusted" -ForegroundColor DarkGray
     Write-Host ""
     Write-Host "  WHEN TO USE" -ForegroundColor Yellow
     Write-Host "    Use wildcard mode for personal dev machines (covers everything)." -ForegroundColor DarkGray
