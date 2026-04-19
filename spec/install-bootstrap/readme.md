@@ -343,3 +343,20 @@ On lock fallback:
 | Re-run from inside, but folder is locked by another shell | cd .., remove fails, TEMP + copy    |
 | Run from `D:\scripts-fixer` (different drive sibling name)| cd .., remove, direct clone         |
 | Run from arbitrary folder (no conflict at all)            | Direct clone, no relocation logs    |
+
+### Bash equivalents
+
+The bash bootstrap mirrors the PowerShell flow exactly:
+
+| Concern                        | PowerShell                              | Bash                                          |
+|--------------------------------|-----------------------------------------|-----------------------------------------------|
+| Stderr capture                 | `2>$errFile` + `Get-Content`            | `2>"$err_file"` (mktemp) + `sed`              |
+| Quiet clone                    | `git clone --quiet`                     | `git clone --quiet`                           |
+| Detect inside target           | `(Split-Path -Leaf) -ieq 'scripts-fixer'`| `[ "$(basename "$PWD")" = "scripts-fixer" ]` |
+| Detect sibling                 | `Test-Path (Join-Path $cwd 'scripts-fixer')` | `[ -d "$PWD/scripts-fixer" ]`            |
+| Remove                         | `Remove-FolderSafe` (clears RO bits)    | `remove_folder_safe` → `rm -rf`               |
+| Temp dir                       | `$env:TEMP\scripts-fixer-bootstrap-<ts>`| `${TMPDIR:-/tmp}/scripts-fixer-bootstrap-<ts>`|
+| Copy from temp                 | `Copy-Item -Recurse -Force`             | `cp -a "$TEMP_DIR/." "$FOLDER/"`              |
+| Final action                   | `cd $folder; & .\run.ps1 -d`            | print `cd $FOLDER; pwsh ./run.ps1 -d`         |
+
+The same `[LOCATE]`/`[CD]`/`[CLEAN]`/`[GIT]`/`[OK]`/`[INFO]`/`[TEMP]`/`[COPY]`/`[ERROR]`/`[WARN]` log tags are used in both scripts.
