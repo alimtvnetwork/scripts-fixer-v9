@@ -42,6 +42,26 @@
     },
     "pushAutoSetupRemote": {
       "enabled": true
+    },
+    "safeDirectoryWildcard": {
+      "_comment": "Adds safe.directory='*' globally so git stops complaining about 'dubious ownership' on Windows. Same effect as `.\\run.ps1 gsa`. Disable if you want per-repo entries instead.",
+      "enabled": true
+    },
+    "lfsFilters": {
+      "_comment": "Bakes in the Git LFS smudge/clean/process filters globally. Normally `git lfs install` already does this -- this block re-asserts them in case the LFS install step was skipped or the filters got wiped.",
+      "enabled": true,
+      "clean":   "git-lfs clean -- %f",
+      "smudge":  "git-lfs smudge -- %f",
+      "process": "git-lfs filter-process",
+      "required": true
+    },
+    "urlRewrites": {
+      "_comment": "url.<base>.insteadOf rewrites. Forces SSH for GitHub + GitLab so cloning HTTPS URLs (e.g. from a browser) silently uses your SSH key instead of prompting for a password / PAT. Disable if you actually want HTTPS auth.",
+      "enabled": true,
+      "rules": [
+        { "base": "git@github.com:",  "insteadOf": "https://github.com/" },
+        { "base": "git@gitlab.com:",  "insteadOf": "https://gitlab.com/" }
+      ]
     }
   },
   "path": {
