@@ -700,6 +700,7 @@ function Resolve-InstallKeywords {
     $keywordData = Get-Content $keywordsFile -Raw | ConvertFrom-Json
     $keywordMap = $keywordData.keywords
     $modesMap  = $keywordData.modes
+    $remoteMap = $keywordData.remote
 
     $tokens = [System.Collections.Generic.List[string]]::new()
     foreach ($keywordGroup in $Keywords) {
