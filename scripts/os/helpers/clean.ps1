@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    os clean -- Aggregate orchestrator (v0.46.0 -- 49 categories).
+    os clean -- Aggregate orchestrator (v0.47.0 -- 54 categories).
 
 .DESCRIPTION
-    Runs all 40 clean-categories helpers in catalog order. Each helper returns
+    Runs all 54 clean-categories helpers in catalog order. Each helper returns
     the standard result hashtable; the orchestrator accumulates them, then
     prints a per-category summary table + grand total + deduped LOCKED FILES.
 
@@ -198,6 +198,11 @@ $catalog = @(
     @{ Cat = "cargo-registry";      Bucket = "F"; Helper = "cargo-registry.ps1" },
     @{ Cat = "go-buildcache";       Bucket = "F"; Helper = "go-buildcache.ps1" },
     @{ Cat = "maven-repo";          Bucket = "F"; Helper = "maven-repo.ps1" },
+    @{ Cat = "conda-pkgs";          Bucket = "F"; Helper = "conda-pkgs.ps1" },
+    @{ Cat = "poetry-cache";        Bucket = "F"; Helper = "poetry-cache.ps1" },
+    @{ Cat = "pnpm-store";          Bucket = "F"; Helper = "pnpm-store.ps1" },
+    @{ Cat = "deno-cache";          Bucket = "F"; Helper = "deno-cache.ps1" },
+    @{ Cat = "rustup-toolchains";   Bucket = "F"; Helper = "rustup-toolchains.ps1" },
     @{ Cat = "npm-cache";           Bucket = "F"; Helper = "npm-cache.ps1" },
     @{ Cat = "pip-cache";           Bucket = "F"; Helper = "pip-cache.ps1" },
     @{ Cat = "docker-dangling";     Bucket = "F"; Helper = "docker-dangling.ps1" },
