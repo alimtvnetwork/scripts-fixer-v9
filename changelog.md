@@ -2,6 +2,85 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.47.0] -- 2026-04-20
+
+### Added: OS Clean Phase 6 -- 5 more dev-tool cache categories (Bucket F, total = 54)
+
+Continues the cache-only Bucket F expansion from v0.46.0 (Phase 5 added yarn/bun/cargo/go/maven). Phase 6 brings 5 more language-runtime caches under the same `_sweep.ps1` primitives, the same `--dry-run` / `--yes` / `--days N` flags, and the same `New-CleanResult` / `Set-CleanResultStatus` result contract. Total catalog now stands at **54 categories** (was 49).
+
+### New categories
+
+| Cat | Bucket | What it cleans | What stays SAFE |
+|---|---|---|---|
+| `conda-pkgs` | F | `~/anaconda3/pkgs`, `~/miniconda3/pkgs`, `~/.conda/pkgs/cache`. Invokes `conda clean --all --yes` first when CLI is on PATH. | All conda envs under `envs\`, base interpreter, `.condarc`, `environment.yml` files in projects. |
+| `poetry-cache` | F | `%LOCALAPPDATA%\pypoetry\Cache`, `~/.cache/pypoetry`. Invokes `poetry cache clear --all PyPI --no-interaction` first. | Project `pyproject.toml` / `poetry.lock`, project-local `.venv`, the Poetry installer itself. |
+| `pnpm-store` | F | `~/.pnpm-store`, `%LOCALAPPDATA%\pnpm\store`, `%LOCALAPPDATA%\pnpm-cache`. Invokes `pnpm store prune` first (removes only unreferenced content). | pnpm runtime under `LOCALAPPDATA\pnpm\` (outside `\store\`), pnpm-global shims, project lockfiles. |
+| `deno-cache` | F | `$env:DENO_DIR` (resolved via `deno info --json` first, then `%LOCALAPPDATA%\deno` fallback) -- specifically the `deps\`, `gen\`, `npm\`, `registries\` subfolders. | The DENO_DIR root itself (so any user-installed shims stay), `deno.json` / `deno.lock`, `deno.exe` runtime, `DENO_INSTALL_ROOT` scripts. |
+| `rustup-toolchains` | F | **Age-gated** -- `~/.rustup/toolchains/<name>` whose directory `LastWriteTime` is older than `--days N` (default 30) AND is NOT the active toolchain reported by `rustup show active-toolchain`. Each kept toolchain is logged as `KEEP: <name> (...)`. | The active default toolchain (always), any toolchain touched within the `--days` window, `~/.rustup/settings.toml`, `~/.cargo/bin` (handled by `cargo-registry`). |
+
+### Files added
+
+- `scripts/os/helpers/clean-categories/conda-pkgs.ps1`
+- `scripts/os/helpers/clean-categories/poetry-cache.ps1`
+- `scripts/os/helpers/clean-categories/pnpm-store.ps1`
+- `scripts/os/helpers/clean-categories/deno-cache.ps1`
+- `scripts/os/helpers/clean-categories/rustup-toolchains.ps1`
+
+### Files updated
+
+- `scripts/os/helpers/clean.ps1` -- added 5 catalog rows (Bucket F), bumped header to "v0.47.0 -- 54 categories".
+- `scripts/os/run.ps1` -- added 5 rows to `$script:CleanCatalog`, updated help banner from "all 49" to "all 54".
+- `scripts/version.json` -- bumped `0.46.2` -> `0.47.0` (minor: new categories = new surface).
+- `changelog.md` -- this entry.
+
+### Conventions honoured (carried over from Phase 5)
+
+- **CLI-first sweep**: each helper that has a native cache-clean command (`conda clean`, `poetry cache clear`, `pnpm store prune`) invokes it before the path sweep, so the upstream tool gets to apply its own integrity rules. Failures are logged at `warn` and never abort the sweep.
+- **DENO_DIR resolution precedence**: `$env:DENO_DIR` -> `deno info --json` -> `%LOCALAPPDATA%\deno`. Logged in `Notes` so the user always knows which path was hit.
+- **`rustup-toolchains` is the first age-gated Bucket F category**: it follows the same `--days N` semantic as `obs-recordings` (Bucket G), but does NOT need consent because the deletion is a pure cache (rustup re-downloads on demand). Active toolchain is hard-pinned even when stale.
+- **CODE RED file-path discipline**: every helper's `Notes` lists the exact paths it considered, marks "not present" cases explicitly, and routes Remove-Item failures through `Get-LockReason` -> `LockedDetails` so the deduped `[ LOCKED FILES ]` block at the end of `os clean` shows the real path + reason.
+
+### Verification on Windows
+
+```powershell
+.\run.ps1 os clean --bucket F --dry-run
+# expect: 19 categories listed (was 14 in v0.46.0); each prints a
+#         would-items / would-free MB row; the 5 new ones at the bottom
+#         of Bucket F before npm-cache / pip-cache / docker-dangling / wsl.
+
+.\run.ps1 os clean-conda-pkgs --dry-run
+# expect: Notes line "Conda not present ..." OR three sweep rows
+#         (anaconda3\pkgs, miniconda3\pkgs, .conda\pkgs\cache).
+
+.\run.ps1 os clean-poetry-cache --dry-run
+# expect: at most 2 sweep rows (Cache + .cache\pypoetry); never touches pyproject.
+
+.\run.ps1 os clean-pnpm-store --dry-run
+# expect: 'pnpm store prune' note (if pnpm CLI present) + sweep rows for
+#         .pnpm-store / LOCALAPPDATA\pnpm\store / LOCALAPPDATA\pnpm-cache.
+
+.\run.ps1 os clean-deno-cache --dry-run
+# expect: Notes "DENO_DIR resolved to: <path>" line, then sweep rows for
+#         deps/gen/npm/registries subfolders only -- DENO_DIR root untouched.
+
+.\run.ps1 os clean-rustup-toolchains --days 7 --dry-run
+# expect: "Active toolchain (preserved): stable-x86_64-pc-windows-msvc"
+#         then KEEP: ... rows for each in-window toolchain
+#         then STALE candidate: ... rows + sweep for each old toolchain.
+
+.\run.ps1 doctor --self-check
+# expect: section (c) now prints 54 rows; all green; sections (a)+(b) still pass.
+```
+
+### Negative tests
+
+1. With no relevant tool installed (e.g. no Conda):
+   `.\run.ps1 os clean-conda-pkgs --dry-run` -> single "Conda not present (...)" note, status `dry-run`, exit 0.
+2. `--days 0` on rustup-toolchains: removes EVERY non-active toolchain (every directory is older than "0 days ago"). Active default still preserved -- if it isn't, that's a bug, file an issue.
+3. `--days 99999` on rustup-toolchains: removes nothing, prints `KEEP: <name> (touched ... -- within 99999-day window)` for every toolchain.
+
+---
+
 ## [v0.46.2] -- 2026-04-20
 
 ### Pinned: SHA256 integrity hashes for the 4 existing remote installers
