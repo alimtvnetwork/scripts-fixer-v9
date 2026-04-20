@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    os clean -- Aggregate orchestrator (v0.45.0 -- 44 categories).
+    os clean -- Aggregate orchestrator (v0.46.0 -- 49 categories).
 
 .DESCRIPTION
     Runs all 40 clean-categories helpers in catalog order. Each helper returns
