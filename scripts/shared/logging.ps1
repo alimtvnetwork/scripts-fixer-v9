@@ -11,6 +11,9 @@ $script:_LogWarnings = [System.Collections.ArrayList]::new()
 $script:_LogName     = $null
 $script:_LogStart    = $null
 $script:_LogsDir     = $null
+# Cached identity fields (resolved once per session, stamped into every event
+# so log lines stay traceable even after grep / split / concat).
+$script:_LogIdentity = $null
 
 function Write-Log {
     param(
@@ -73,10 +76,21 @@ function Write-Log {
     Write-Host ""
 
     # ── Record structured event ──────────────────────────────────────────
-    $event = @{
-        timestamp = (Get-Date -Format "o")
-        level     = $Status
-        message   = $Message
+    # Stamp identity (projectVersion + invokedFrom) onto every event so a
+    # single grepped line is still traceable to its origin script and version.
+    $hasCachedIdentity = $null -ne $script:_LogIdentity
+    if (-not $hasCachedIdentity) {
+        try { $script:_LogIdentity = Get-LogIdentityFields } catch {
+            $script:_LogIdentity = @{ projectVersion = "unknown"; invokedFrom = "unknown" }
+        }
+    }
+    $event = [ordered]@{
+        timestamp      = (Get-Date -Format "o")
+        level          = $Status
+        message        = $Message
+        projectVersion = $script:_LogIdentity.projectVersion
+        invokedFrom    = $script:_LogIdentity.invokedFrom
+        scriptName     = $script:_LogName
     }
     $script:_LogEvents.Add($event) | Out-Null
 
