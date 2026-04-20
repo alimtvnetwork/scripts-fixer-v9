@@ -2,6 +2,40 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.44.0] -- 2026-04-20
+
+### Added (`install clean-code` remote installer)
+
+New keyword family `install clean-code`, `install code-guide`, `install cg`, `install cc`, `install coding-guidelines` -- all four resolve to the **same** action: stream and execute the Coding Guidelines v15 installer from GitHub.
+
+```powershell
+# All four commands are equivalent:
+.\run.ps1 install clean-code
+.\run.ps1 install code-guide
+.\run.ps1 install cg
+.\run.ps1 install cc
+```
+
+Equivalent to running directly:
+
+```powershell
+irm https://raw.githubusercontent.com/alimtvnetwork/coding-guidelines-v15/main/install.ps1 | iex
+```
+
+#### Implementation
+
+- New `remote` block in `scripts/shared/install-keywords.json` maps each remote key to a `{ url, label }` pair. Source of truth -- new remote installers are added by editing JSON, not code.
+- `Resolve-InstallKeywords` (in `run.ps1`) now recognises `remote:<key>` string entries alongside the existing `os:<action>` / `profile:<name>` subcommand convention. Missing URLs fail loudly with the exact JSON path (CODE RED file-path discipline).
+- New `Kind = "remote"` entries are sorted to run **after** script installs and subcommands -- so `install vscode,clean-code` installs VS Code first, then streams the remote guide.
+- Dispatch uses `Invoke-RestMethod -UseBasicParsing` + `Invoke-Expression` (the canonical `irm | iex` pattern) wrapped in `try/catch`. Failures report URL + reason; empty bodies and non-zero `$LASTEXITCODE` are both treated as failures.
+- Each remote dispatch prints `Source: <url>` and `Command: irm <url> | iex` before executing -- users can copy the literal one-liner for manual reruns.
+- After execution `Refresh-EnvPath` is called so any tool the remote installer added to PATH is picked up by subsequent chained steps.
+
+#### Notes
+
+- Banner avoids em dashes / wide Unicode (terminal-banners memory rule).
+- Aliases use the `is`/`has` boolean prefix convention throughout the new branch.
+
 ## [v0.43.2] -- 2026-04-20
 
 ### Added (`logs --tail` subcommand)
