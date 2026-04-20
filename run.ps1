@@ -1903,6 +1903,59 @@ if ($hasInstallKeywords) {
             continue
         }
 
+        $isRemote = $entry.Kind -eq "remote"
+        if ($isRemote) {
+            # Stream a remote PowerShell installer via 'Invoke-RestMethod | Invoke-Expression'
+            $url   = $entry.Url
+            $label = $entry.Label
+            $hasLabel = -not [string]::IsNullOrWhiteSpace($label)
+            $displayLabel = if ($hasLabel) { $label } else { $entry.Key }
+
+            Write-Host ""
+            Write-Host "  ----- Remote: $($entry.Key) -----" -ForegroundColor Cyan
+            Write-Host "  $displayLabel" -ForegroundColor DarkGray
+            Write-Host "  Source: $url" -ForegroundColor DarkGray
+            Write-Host "  Command: irm $url | iex" -ForegroundColor DarkGray
+            Write-Host ""
+
+            $remoteFailed = $false
+            $remoteError  = $null
+            try {
+                $script = Invoke-RestMethod -Uri $url -UseBasicParsing -ErrorAction Stop
+                $isScriptEmpty = [string]::IsNullOrWhiteSpace($script)
+                if ($isScriptEmpty) {
+                    $remoteFailed = $true
+                    $remoteError  = "Remote URL returned an empty body"
+                } else {
+                    Invoke-Expression $script
+                    $code = $LASTEXITCODE
+                    if ($null -ne $code -and $code -ne 0) {
+                        $remoteFailed = $true
+                        $remoteError  = "Remote installer exited with code $code"
+                    }
+                }
+            } catch {
+                $remoteFailed = $true
+                $remoteError  = $_.Exception.Message
+            }
+
+            if ($remoteFailed) {
+                Write-Host ""
+                Write-Host "  [ FAIL ] " -ForegroundColor Red -NoNewline
+                Write-Host "Remote installer '$($entry.Key)' failed."
+                Write-Host "          URL    : $url" -ForegroundColor DarkGray
+                Write-Host "          Reason : $remoteError" -ForegroundColor DarkGray
+                $failCount++
+            } else {
+                Write-Host ""
+                Write-Host "  [  OK  ] " -ForegroundColor Green -NoNewline
+                Write-Host "Remote installer '$($entry.Key)' completed."
+                $successCount++
+            }
+            Refresh-EnvPath
+            continue
+        }
+
         $id      = $entry.Id
         $modeKey = $entry.Mode
         $hasModeOverride = -not [string]::IsNullOrWhiteSpace($modeKey)
