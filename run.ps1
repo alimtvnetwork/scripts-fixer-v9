@@ -820,12 +820,13 @@ function Resolve-InstallKeywords {
         return $null
     }
 
-    # Sort: subcommands keep their original order at the END (run after script installs).
+    # Sort: subcommands + remote streams keep their original order at the END (run after script installs).
     # Script entries are sorted by ID. We split, sort scripts, then concat.
     $scriptEntries     = @($entries | Where-Object { $_.Kind -eq "script" -or $null -eq $_.Kind })
     $subcommandEntries = @($entries | Where-Object { $_.Kind -eq "subcommand" })
+    $remoteEntries     = @($entries | Where-Object { $_.Kind -eq "remote" })
     $sortedScripts     = $scriptEntries | Sort-Object { [int]$_.Id }
-    $sorted            = @($sortedScripts) + @($subcommandEntries)
+    $sorted            = @($sortedScripts) + @($subcommandEntries) + @($remoteEntries)
     return $sorted
 }
 
