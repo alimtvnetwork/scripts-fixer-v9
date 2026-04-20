@@ -370,6 +370,19 @@ function Show-RootHelp {
     Write-Host "    $("install alldev,mysql".PadRight($kc))" -NoNewline; Write-Host "Run the alldev menu, then install MySQL" -ForegroundColor DarkGray
     Write-Host ""
 
+    Write-Host "    Remote installers (irm <url> | iex):" -ForegroundColor Magenta
+    Write-Host "      All aliases on each row are EQUIVALENT -- pick whichever you remember." -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "    $("install clean-code".PadRight($kc))" -NoNewline; Write-Host "Coding Guidelines v15 -- alimtvnetwork/coding-guidelines-v15" -ForegroundColor DarkGray
+    Write-Host "    $("install code-guide  (= cg, cc)".PadRight($kc))" -NoNewline; Write-Host "Same as 'install clean-code' (4 aliases total)" -ForegroundColor DarkGray
+    Write-Host "    $("install coding-guidelines".PadRight($kc))" -NoNewline; Write-Host "Same as 'install clean-code' (long alias)" -ForegroundColor DarkGray
+    Write-Host "    $("install starship    (= ss)".PadRight($kc))" -NoNewline; Write-Host "Starship cross-shell prompt -- starship.rs/install.ps1" -ForegroundColor DarkGray
+    Write-Host "    $("install oh-my-posh  (= omp, posh)".PadRight($kc))" -NoNewline; Write-Host "Oh My Posh prompt -- ohmyposh.dev/install.ps1" -ForegroundColor DarkGray
+    Write-Host "    $("install scoop       (= sc)".PadRight($kc))" -NoNewline; Write-Host "Scoop CLI installer -- get.scoop.sh" -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "    Combine remote + local: install vscode,cg  (VS Code first, then clean-code)" -ForegroundColor DarkGray
+    Write-Host ""
+
     Show-KeywordTable -Inline
     Write-Host ""
 
@@ -648,6 +661,17 @@ function Show-KeywordTable {
     Write-Host "    $("devops".PadRight($kwCol))$("Git + Docker + Kubernetes".PadRight($descCol))07, 45, 46"
     Write-Host "    $("container-dev".PadRight($kwCol))$("Docker + Kubernetes".PadRight($descCol))45, 46"
     Write-Host "    $("systems-dev".PadRight($kwCol))$("C++ + Rust".PadRight($descCol))09, 44"
+    Write-Host ""
+    Write-Host "    Remote installers (irm | iex)" -ForegroundColor Magenta
+    Write-Host "    $("clean-code, cg, cc".PadRight($kwCol))$("Coding Guidelines v15".PadRight($descCol))remote"
+    Write-Host "    $("code-guide".PadRight($kwCol))$("Coding Guidelines v15 (alias)".PadRight($descCol))remote"
+    Write-Host "    $("coding-guidelines".PadRight($kwCol))$("Coding Guidelines v15 (alias)".PadRight($descCol))remote"
+    Write-Host "    $("starship, ss".PadRight($kwCol))$("Starship cross-shell prompt".PadRight($descCol))remote"
+    Write-Host "    $("starship-prompt".PadRight($kwCol))$("Starship (alias)".PadRight($descCol))remote"
+    Write-Host "    $("oh-my-posh, omp, posh".PadRight($kwCol))$("Oh My Posh prompt theme".PadRight($descCol))remote"
+    Write-Host "    $("ohmyposh".PadRight($kwCol))$("Oh My Posh (alias)".PadRight($descCol))remote"
+    Write-Host "    $("scoop, sc".PadRight($kwCol))$("Scoop CLI installer".PadRight($descCol))remote"
+    Write-Host "    $("scoop-installer".PadRight($kwCol))$("Scoop (alias)".PadRight($descCol))remote"
     Write-Host ""
 
     Write-Host "  Combo Shortcuts:" -ForegroundColor Yellow

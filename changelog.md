@@ -2,6 +2,54 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.45.1] -- 2026-04-20
+
+> **Note on version label:** the user requested "Bump to v0.44.1", but v0.44.1 is in the past (we shipped v0.45.0 earlier today). Per project memory ("Code changes must bump at least minor version" -- treated here as "version must monotonically increase"), the change ships as **v0.45.1** instead. The discoverability work the user asked for is delivered exactly as specified.
+
+### Added: `Show-RootHelp` + `Show-KeywordTable` "Remote installers" sections
+
+The 4 remote installers shipped in v0.44.0 (`clean-code`) and v0.45.0 (`starship`, `oh-my-posh`, `scoop`) now show up in both top-level help surfaces so users can discover them via `.\run.ps1 -Help` and `.\run.ps1 -List`.
+
+#### `.\run.ps1 -Help` (Show-RootHelp)
+
+A new **"Remote installers (irm <url> | iex)"** block was inserted after the "Combine keywords" section and before the keyword table. Format mirrors the Database / Combine sections (Magenta header + DarkGray rows) and explicitly states **"All aliases on each row are EQUIVALENT -- pick whichever you remember."** so the equivalence is unmissable.
+
+```
+    Remote installers (irm <url> | iex):
+      All aliases on each row are EQUIVALENT -- pick whichever you remember.
+
+    install clean-code                          Coding Guidelines v15 -- alimtvnetwork/coding-guidelines-v15
+    install code-guide  (= cg, cc)              Same as 'install clean-code' (4 aliases total)
+    install coding-guidelines                   Same as 'install clean-code' (long alias)
+    install starship    (= ss)                  Starship cross-shell prompt -- starship.rs/install.ps1
+    install oh-my-posh  (= omp, posh)           Oh My Posh prompt -- ohmyposh.dev/install.ps1
+    install scoop       (= sc)                  Scoop CLI installer -- get.scoop.sh
+
+    Combine remote + local: install vscode,cg  (VS Code first, then clean-code)
+```
+
+#### `.\run.ps1 -List` (Show-KeywordTable)
+
+A new **"Remote installers (irm | iex)"** group was inserted after "DevOps & Containers". The Script ID column reads `remote` (instead of a numeric script id) so users instantly see these dispatch through the `remote:` convention and not a local script.
+
+| Keyword | Description | Script ID |
+|---|---|---|
+| `clean-code, cg, cc` | Coding Guidelines v15 | `remote` |
+| `code-guide` | Coding Guidelines v15 (alias) | `remote` |
+| `coding-guidelines` | Coding Guidelines v15 (alias) | `remote` |
+| `starship, ss` | Starship cross-shell prompt | `remote` |
+| `starship-prompt` | Starship (alias) | `remote` |
+| `oh-my-posh, omp, posh` | Oh My Posh prompt theme | `remote` |
+| `ohmyposh` | Oh My Posh (alias) | `remote` |
+| `scoop, sc` | Scoop CLI installer | `remote` |
+| `scoop-installer` | Scoop (alias) | `remote` |
+
+### Files
+
+- `run.ps1`: `Show-RootHelp` -- new "Remote installers" section after the Combine block.
+- `run.ps1`: `Show-KeywordTable` -- new "Remote installers (irm | iex)" group after DevOps.
+- `scripts/version.json`: 0.45.0 -> 0.45.1.
+
 ## [v0.45.0] -- 2026-04-20
 
 Consolidated batch: OS Clean **Phase 4** (4 new dev-cache categories), `logs` subcommand **filter siblings** (`--grep` / `--since` / `--errors` / `--case-sensitive`), and **3 new remote installers** (`starship`, `oh-my-posh`, `scoop`) wired through the `remote:` convention introduced in v0.44.0.
