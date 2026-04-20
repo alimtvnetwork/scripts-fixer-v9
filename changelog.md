@@ -2,6 +2,53 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.46.0] -- 2026-04-20
+
+### Added: OS Clean Phase 5 -- 5 dev-tool cache categories (49 total)
+
+All five are **non-destructive cache-only** under Bucket F. Settings, projects, source code, installed CLIs, lockfiles, and credentials are NEVER touched. Each accepts `--dry-run` / `--yes` / `--days N` and uses the shared `_sweep.ps1` primitives (`Invoke-PathSweep`, `New-CleanResult`, `Set-CleanResultStatus`) -- zero duplication.
+
+| Category | Targets | What it KEEPS | CLI invoked first |
+|---|---|---|---|
+| `yarn-cache` | `%LOCALAPPDATA%\Yarn\Cache\*`, `~\.yarn\berry\cache`, `~\.cache\yarn` | Project `node_modules`, lockfiles, `.yarnrc`, `yarn global add` packages | `yarn cache clean --all` (best effort, when CLI on PATH and not dry-run) |
+| `bun-cache` | `~\.bun\install\cache`, `%LOCALAPPDATA%\bun-cache` | `~\.bun\bin` (the bun runtime + globally-linked CLIs), `bun.lockb` | `bun pm cache rm` (best effort) |
+| `cargo-registry` | `~\.cargo\registry\cache`, `~\.cargo\registry\src`, `~\.cargo\git\checkouts`, `~\.cargo\git\db` | `~\.cargo\bin`, `config.toml`, `credentials.toml`, **registry\index** (re-syncing it costs minutes -- intentionally left alone) | none -- Cargo has no equivalent built-in command |
+| `go-buildcache` | `GOCACHE` (default `%LOCALAPPDATA%\go-build`), `GOMODCACHE\cache\download` (default `~\go\pkg\mod\cache\download`) | `~\go\bin`, project source, `go.mod` / `go.sum`. Resolves paths via `go env GOCACHE` / `go env GOMODCACHE` when the CLI is on PATH (more accurate than guessing). | `go clean -cache` + `go clean -modcache` (best effort) |
+| `maven-repo` | `~\.m2\repository`, `~\.m2\wrapper\dists` | `settings.xml`, `settings-security.xml`, project `pom.xml` / `target\`, the wrapper script itself | none -- Maven offers no whole-cache flush |
+
+### CLI-first design
+
+Where the upstream tool ships its own cache-cleaning command (Yarn, Bun, Go), we **invoke the official command first**, then run the path sweep to mop up anything the CLI missed (orphaned dirs, broken layouts, partial downloads). This is gated behind `if (-not $DryRun)` and `Get-Command <tool>` so the helpers stay safe on machines where the tool isn't installed and silent on dry-runs.
+
+Cargo and Maven get pure path sweeps because their official tooling has no equivalent ("cargo doesn't ship a cache flush, Maven's `dependency:purge-local-repository` is per-project not global").
+
+### Catalog wiring
+
+- `scripts/os/run.ps1`: 5 entries appended to `$script:CleanCatalog` under Bucket F. Help banner now reads "Run all **49** cleanup categories".
+- `scripts/os/helpers/clean.ps1`: catalog grew from 44 to 49; orchestrator synopsis bumped to `v0.46.0 -- 49 categories`.
+
+### Subcommand surface
+
+```powershell
+.\run.ps1 os clean-yarn-cache --dry-run
+.\run.ps1 os clean-bun-cache --dry-run
+.\run.ps1 os clean-cargo-registry --dry-run
+.\run.ps1 os clean-go-buildcache --dry-run
+.\run.ps1 os clean-maven-repo --dry-run
+.\run.ps1 os clean --bucket F --dry-run        # all 14 dev-tool categories now (was 9)
+```
+
+### Files
+
+- `scripts/os/helpers/clean-categories/yarn-cache.ps1` (new)
+- `scripts/os/helpers/clean-categories/bun-cache.ps1` (new)
+- `scripts/os/helpers/clean-categories/cargo-registry.ps1` (new)
+- `scripts/os/helpers/clean-categories/go-buildcache.ps1` (new)
+- `scripts/os/helpers/clean-categories/maven-repo.ps1` (new)
+- `scripts/os/run.ps1`: catalog +5, banner 44 -> 49
+- `scripts/os/helpers/clean.ps1`: catalog +5, synopsis 44 -> 49
+- `scripts/version.json`: 0.45.2 -> 0.46.0
+
 ## [v0.45.2] -- 2026-04-20
 
 > **Note on version label:** the user requested "Bump to v0.44.1", but v0.44.1 is in the past (we shipped v0.45.0 + v0.45.1 earlier today). Per project memory ("version must monotonically increase"), this ships as **v0.45.2**. The integrity-check work the user asked for is delivered exactly as specified.
