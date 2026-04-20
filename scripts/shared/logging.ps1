@@ -216,6 +216,88 @@ function Initialize-Logging {
     Write-Log "Logging initialised -- events will be saved to: $logsDir\$safeName.json" -Level "info"
 }
 
+function Get-LogIdentityFields {
+    <#
+    .SYNOPSIS
+        Returns @{ projectVersion = "X.Y.Z"; invokedFrom = "scripts/.../run.ps1" }
+        for stamping into every .logs/*.json payload so log files are
+        self-identifying without reading the surrounding repo state.
+        Both fields are best-effort -- never throw.
+    #>
+    $projectVersion = "unknown"
+    $invokedFrom    = "unknown"
+
+    try {
+        # Resolve project root the same way Initialize-Logging does.
+        $scriptsRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+        $isSharedDir = (Split-Path -Leaf $PSScriptRoot) -eq "shared"
+        if ($isSharedDir) {
+            $scriptsRoot = Split-Path -Parent $PSScriptRoot
+        }
+        $projectRoot = Split-Path -Parent $scriptsRoot
+
+        # ----- projectVersion : read scripts/version.json -----
+        $versionFile = Join-Path $scriptsRoot "version.json"
+        $hasVersionFile = Test-Path -LiteralPath $versionFile
+        if ($hasVersionFile) {
+            try {
+                $vd = Get-Content -LiteralPath $versionFile -Raw | ConvertFrom-Json
+                if ($vd.version) { $projectVersion = "$($vd.version)" }
+            } catch {
+                Write-Log "logging: failed to read version.json at ${versionFile}: $($_.Exception.Message)" -Level "warn"
+            }
+        } else {
+            Write-Log "logging: version.json missing at ${versionFile} -- projectVersion=unknown" -Level "warn"
+        }
+
+        # ----- invokedFrom : top-of-callstack script, relative to project root -----
+        try {
+            $stack = Get-PSCallStack
+            $thisFile = $PSCommandPath
+            $candidate = $null
+            # Walk from the bottom (oldest frame) and pick the first frame whose
+            # ScriptName lives under the project root and is NOT this logging file.
+            for ($i = $stack.Count - 1; $i -ge 0; $i--) {
+                $sn = $stack[$i].ScriptName
+                if ([string]::IsNullOrWhiteSpace($sn)) { continue }
+                if ($sn -eq $thisFile) { continue }
+                if ($sn.StartsWith($projectRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    $candidate = $sn
+                    break
+                }
+            }
+            if (-not $candidate) {
+                # Fall back to the very last non-logging frame, even if outside the repo.
+                for ($i = $stack.Count - 1; $i -ge 0; $i--) {
+                    $sn = $stack[$i].ScriptName
+                    if (-not [string]::IsNullOrWhiteSpace($sn) -and $sn -ne $thisFile) {
+                        $candidate = $sn
+                        break
+                    }
+                }
+            }
+            if ($candidate) {
+                if ($candidate.StartsWith($projectRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    $rel = $candidate.Substring($projectRoot.Length).TrimStart('\','/')
+                    $invokedFrom = ($rel -replace '\\','/')
+                } else {
+                    # Outside the repo -- store the absolute path so the log is still useful.
+                    $invokedFrom = $candidate
+                }
+            }
+        } catch {
+            Write-Log "logging: callstack resolution failed: $($_.Exception.Message)" -Level "warn"
+        }
+    } catch {
+        # Total fallback -- both fields stay "unknown".
+    }
+
+    return @{
+        projectVersion = $projectVersion
+        invokedFrom    = $invokedFrom
+    }
+}
+
 function Save-LogFile {
     <#
     .SYNOPSIS
@@ -232,17 +314,23 @@ function Save-LogFile {
     $endTime  = Get-Date
     $duration = ($endTime - $script:_LogStart).TotalSeconds
 
+    # Identity fields stamped into every log payload (v0.42.2+)
+    # so .logs/*.json files are self-identifying.
+    $identity = Get-LogIdentityFields
+
     # Main log file
-    $logData = @{
-        scriptName = $script:_LogName
-        status     = $Status
-        startTime  = $script:_LogStart.ToString("o")
-        endTime    = $endTime.ToString("o")
-        duration   = [math]::Round($duration, 2)
-        eventCount = $script:_LogEvents.Count
-        errorCount = $script:_LogErrors.Count
-        warnCount  = $script:_LogWarnings.Count
-        events     = @($script:_LogEvents)
+    $logData = [ordered]@{
+        projectVersion = $identity.projectVersion
+        invokedFrom    = $identity.invokedFrom
+        scriptName     = $script:_LogName
+        status         = $Status
+        startTime      = $script:_LogStart.ToString("o")
+        endTime        = $endTime.ToString("o")
+        duration       = [math]::Round($duration, 2)
+        eventCount     = $script:_LogEvents.Count
+        errorCount     = $script:_LogErrors.Count
+        warnCount      = $script:_LogWarnings.Count
+        events         = @($script:_LogEvents)
     }
 
     $logPath = Join-Path $script:_LogsDir "$($script:_LogName).json"
@@ -255,16 +343,18 @@ function Save-LogFile {
     $isOverallFailure = $Status -eq "fail"
     $shouldWriteErrorLog = $hasErrors -or $hasWarnings -or $isOverallFailure
     if ($shouldWriteErrorLog) {
-        $errorData = @{
-            scriptName    = $script:_LogName
-            overallStatus = $Status
-            startTime     = $script:_LogStart.ToString("o")
-            endTime       = $endTime.ToString("o")
-            duration      = [math]::Round($duration, 2)
-            errorCount    = $script:_LogErrors.Count
-            warnCount     = $script:_LogWarnings.Count
-            errors        = @($script:_LogErrors)
-            warnings      = @($script:_LogWarnings)
+        $errorData = [ordered]@{
+            projectVersion = $identity.projectVersion
+            invokedFrom    = $identity.invokedFrom
+            scriptName     = $script:_LogName
+            overallStatus  = $Status
+            startTime      = $script:_LogStart.ToString("o")
+            endTime        = $endTime.ToString("o")
+            duration       = [math]::Round($duration, 2)
+            errorCount     = $script:_LogErrors.Count
+            warnCount      = $script:_LogWarnings.Count
+            errors         = @($script:_LogErrors)
+            warnings       = @($script:_LogWarnings)
         }
 
         $errorPath = Join-Path $script:_LogsDir "$($script:_LogName)-error.json"
