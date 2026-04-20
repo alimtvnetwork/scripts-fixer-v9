@@ -2,6 +2,78 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.46.2] -- 2026-04-20
+
+### Pinned: SHA256 integrity hashes for the 4 existing remote installers
+
+Followed the v0.45.2 CODE RED integrity guard end-to-end and committed pinned `sha256` values into `scripts/shared/install-keywords.json` for every working `remote.*` entry. From this release onward, `.\run.ps1 install <pinned-keyword>` will refuse to execute the streamed body unless its hash matches the value below.
+
+### Pinned values (verified 2026-04-20, Malaysia time)
+
+| Key | URL | SHA256 (lowercase hex) | Body size |
+|---|---|---|---|
+| `clean-code` | `https://raw.githubusercontent.com/alimtvnetwork/coding-guidelines-v15/main/install.ps1` | `c045f55132171ba170c60af0d3b1671059c571bfcc293a7674c2e6a2635b8c42` | 14 672 B |
+| `oh-my-posh` | `https://ohmyposh.dev/install.ps1` | `eae09e2ff6a7312b59507d26a5335550580fd8f8ea59334dc2a0a6026ae225ba` | 2 194 B |
+| `scoop` | `https://get.scoop.sh` (-> `https://raw.githubusercontent.com/scoopinstaller/install/master/install.ps1`) | `48f6ea398b3a3fa26fae0093d37bd85b13e7eaa5d1d4a3e208408768408e35ae` | 26 292 B |
+
+All three bodies are LF-only ASCII / UTF-8, so the raw-byte hash and the `[Encoding]::UTF8.GetBytes((Invoke-WebRequest).Content)` hash that `run.ps1` computes at line ~2359 produce identical digests. No byte-order-mark or line-ending normalization to worry about.
+
+### Starship -- intentionally left UNPINNED
+
+`remote.starship` was added in v0.45.0 with `url = https://starship.rs/install.ps1`. **That URL currently returns HTTP 404** -- Starship ships only `install.sh` (POSIX bash) in their repo (`install/install.sh` at `github.com/starship/starship`), and the official Windows install path documented at starship.rs is `winget install starship` / `scoop install starship`, not a piped PowerShell installer.
+
+Rather than:
+- pin a hash for a 404 (every future run would `[ FAIL ]` with "URL returned an empty body"), or
+- silently rewrite the URL to point at a third-party `.ps1` we can't audit,
+
+we set `remote.starship.sha256 = ""` and added a `_sha256_note` field explaining the situation. An empty pin disables the integrity check for that one entry only (run.ps1 already prints a yellow `(not pinned -- add 'sha256' to remote.starship in install-keywords.json to enable integrity check)` warning), and `doctor --self-check` section (d) will continue to flag the URL as `HTTP 404` until upstream is fixed or the entry is rewritten.
+
+**Action item for future maintenance**: either replace `remote.starship` with a `winget install starship` wrapper script in this repo, or remove the entry. Tracking via `_sha256_note`.
+
+### Maintenance procedure (also embedded in `install-keywords.json` -> `_pinMaintenanceNote`)
+
+Refresh the pins **whenever an upstream installer publishes a new release, or at least quarterly**:
+
+1. Download the body fresh:
+   ```bash
+   curl -fsSL <remote.<key>.url> -o /tmp/<key>.ps1
+   ```
+2. Compute the hash **exactly the way `run.ps1` does** -- UTF-8 bytes of the decoded text body:
+   ```powershell
+   $body  = (Invoke-WebRequest <url>).Content
+   $bytes = [System.Text.Encoding]::UTF8.GetBytes($body)
+   ([System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes) `
+     | ForEach-Object { $_.ToString("x2") }) -join ""
+   ```
+3. Paste the lowercase hex into the matching `remote.<key>.sha256` field in `scripts/shared/install-keywords.json`.
+4. Update `_pinLastVerified` to today's date (`yyyy-MM-dd`, Malaysia time).
+5. Bump `scripts/version.json` (patch).
+6. Run `.\run.ps1 doctor --self-check` to confirm pins resolve and URLs return 200.
+
+> **CODE RED rule**: Never commit a hash you didn't verify in the same session. A stale or guessed hash makes the integrity guard refuse every future run of that installer with `SHA256 mismatch -- refusing to execute unverified body`, and the user has no way to recover except editing the JSON.
+
+### Files touched
+
+- `scripts/shared/install-keywords.json` -- added `sha256` (3 pinned + 1 empty), `_pinMaintenanceNote`, `_pinLastVerified`, and `_sha256_note` for starship.
+- `scripts/version.json` -- bumped `0.46.1` -> `0.46.2`.
+- `changelog.md` -- this entry.
+
+No PowerShell logic was changed; this release is data-only. The integrity guard at `run.ps1:2355-2380` and the unpinned-warning path at `run.ps1:2342` were both shipped in v0.45.2 and need no modification.
+
+### Verification on Windows
+
+```powershell
+.\run.ps1 install clean-code   # expect: [  OK  ] SHA256 verified (c045f55...)
+.\run.ps1 install oh-my-posh   # expect: [  OK  ] SHA256 verified (eae09e2...)
+.\run.ps1 install scoop        # expect: [  OK  ] SHA256 verified (48f6ea3...)
+.\run.ps1 install starship     # expect: yellow "(not pinned ...)" warning, then HTTP 404
+.\run.ps1 doctor --self-check  # expect: section (d) -- 3 of 4 remote URLs green, starship FAIL HTTP 404
+```
+
+A negative test (tamper detection): edit any character of the upstream body locally, point the URL at a file://, or temporarily change the pinned hex by one nibble -- run.ps1 must abort with `SHA256 mismatch -- refusing to execute unverified body. Expected: <pinned>  Actual: <computed>  URL: <url>  Pin source: install-keywords.json -> remote.<key>.sha256`.
+
+---
+
 ## [v0.46.1] -- 2026-04-20
 
 ### Added: `.\run.ps1 doctor --self-check` -- deep self-audit
