@@ -257,6 +257,7 @@ function Show-RootHelp {
     Write-Host "    $(".\run.ps1 status".PadRight($col))" -NoNewline; Write-Host "Show dashboard of all installed tools" -ForegroundColor DarkGray
     Write-Host "    $(".\run.ps1 status --no-choco".PadRight($col))" -NoNewline; Write-Host "Status without outdated package check" -ForegroundColor DarkGray
     Write-Host "    $(".\run.ps1 doctor".PadRight($col))" -NoNewline; Write-Host "Quick health check of project setup" -ForegroundColor DarkGray
+    Write-Host "    $(".\run.ps1 doctor --self-check".PadRight($col))" -NoNewline; Write-Host "Deep audit: changelog files, version match, clean catalog, keyword resolution" -ForegroundColor DarkGray
     Write-Host "    $(".\run.ps1 models".PadRight($col))" -NoNewline; Write-Host "Pick AI model backend (llama.cpp / Ollama), browse + install" -ForegroundColor DarkGray
     Write-Host "    $(".\run.ps1 models <ids>".PadRight($col))" -NoNewline; Write-Host "Direct install: CSV of model ids (auto-routes per backend)" -ForegroundColor DarkGray
     Write-Host "    $(".\run.ps1 models list".PadRight($col))" -NoNewline; Write-Host "List all models from both catalogs" -ForegroundColor DarkGray

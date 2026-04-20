@@ -2,6 +2,90 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.46.1] -- 2026-04-20
+
+### Added: `.\run.ps1 doctor --self-check` -- deep self-audit
+
+> **Versioning note:** user requested `v0.45.2`, but the project is already at `v0.46.0`. Per the monotonic-version rule we ship as **v0.46.1** to preserve forward-only history.
+
+A new `--self-check` flag on the existing `doctor` command runs four deep audits and prints a green/red `[ OK ]` / `[FAIL]` row per item, grouped by section, with a final tally. The original quick `doctor` (10 sanity checks, < 2 sec) is unchanged -- the flag opts into the deeper audit.
+
+### Surface
+
+```powershell
+.\run.ps1 doctor                # 10 quick sanity checks (unchanged)
+.\run.ps1 doctor --self-check   # deep audit (4 sections below)
+```
+
+Aliases accepted: `--self-check`, `-self-check`, `--selfcheck`, `selfcheck`, `self-check`.
+
+### Audits performed
+
+| # | Section | What it checks | How |
+|---|---|---|---|
+| (a) | `changelog` | Every `` `path/to/file.ext` `` reference in `changelog.md` resolves to a real file on disk | Regex `` `([A-Za-z0-9_./\\-]+\.(ps1|json|md|psm1|psd1))` ``, skips URLs / `%VAR%` / `~`-rooted paths, normalizes `/` -> `\` and joins with `$RootDir`. Each path becomes one row. |
+| (b) | `version` | `scripts/version.json` matches the latest `## [vX.Y.Z]` header in `changelog.md` | Parses both, single row showing `version.json=vA.B.C  changelog=vX.Y.Z` -- green only when identical. |
+| (c) | `clean` | Every `@{ Cat = ...; Bucket = ...; Helper = ... }` entry in `scripts/os/helpers/clean.ps1` has a matching `.ps1` file in `scripts/os/helpers/clean-categories/` | Regex-parses the catalog (no `Import-Module` needed), `Test-Path` each helper. One row per category. With v0.46.0's 49 categories, this section prints 49 rows. |
+| (d) | `keyword` | Every entry in `install-keywords.json` -> `keywords` resolves to either a real registry script ID, an `os:<action>`, a `profile:<name>`, or a `remote:<key>` whose URL responds HTTP 200 | Builds a `validIds` set from `registry.json`, HEAD-probes every `remote.*` URL **once** with a 10s timeout (cached), then walks every keyword. `os:` and `profile:` targets are accepted by shape (resolved at runtime). Detail column shows `id 5, remote:starship 200, os:clean-vscode-cache`. |
+
+### CODE RED file-path discipline
+
+Every failure row includes the **exact path** that's missing or unreachable, e.g.:
+
+```
+[FAIL] clean    yarn-cache                              [F] MISSING: D:\proj\scripts\os\helpers\clean-categories\yarn-cache.ps1
+[FAIL] keyword  starship                                remote:starship -> HTTP 503 for https://starship.rs/install.ps1
+[FAIL] version  monotonic match                         version.json=v0.46.0  changelog=v0.45.2
+```
+
+### Output shape
+
+```
+  Doctor -- Self-Check (deep audit)
+  =================================
+
+  -- (a) Claimed files in changelog.md exist on disk
+    [ OK ] changelog scripts/os/helpers/clean-categories/yarn-cache.ps1
+    [ OK ] changelog scripts/os/run.ps1
+    ...
+
+  -- (b) version.json matches latest changelog header
+    [ OK ] version  monotonic match                         version.json=v0.46.1  changelog=v0.46.1
+
+  -- (c) os clean-categories: catalog vs helper files
+    [ OK ] clean    recycle                                 [A] recycle.ps1
+    [ OK ] clean    yarn-cache                              [F] yarn-cache.ps1
+    ... (49 rows total)
+
+  -- (d) install-keywords.json: keyword resolution
+    [ OK ] keyword  vscode                                  id 1
+    [ OK ] keyword  starship                                remote:starship 200
+    ...
+
+  Self-Check Summary: 187/187 OK
+
+  All self-check rows green. Project is internally consistent.
+```
+
+### Why HEAD probes are run only once
+
+The cache (`$remoteCache`) is built before walking the keywords list -- so `starship`, `ss`, and `starship-prompt` (3 keywords pointing at `remote:starship`) only generate one HTTP request, not three. Total network cost: 4 HEAD requests today (one per `remote.*` entry).
+
+### Help surface
+
+`.\run.ps1 -Help` now lists both modes:
+
+```
+    .\run.ps1 doctor                Quick health check of project setup
+    .\run.ps1 doctor --self-check   Deep audit: changelog files, version match, clean catalog, keyword resolution
+```
+
+### Files
+
+- `run.ps1`: new `Invoke-DoctorSelfCheck` function (~180 LOC) inserted directly after `Invoke-DoctorCommand`. Doctor dispatch block parses `--self-check` from `$Install` and routes accordingly. `Show-RootHelp` gains one extra line.
+- `scripts/version.json`: 0.46.0 -> 0.46.1
+- `changelog.md`: this entry
+
 ## [v0.46.0] -- 2026-04-20
 
 ### Added: OS Clean Phase 5 -- 5 dev-tool cache categories (49 total)
