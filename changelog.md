@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.42.1] -- 2026-04-20
+
+### Added (consent management)
+
+- **`os clean --consent-list`**: prints the consent file path, machine name, save timestamp, and the sorted list of categories that currently have recorded consent. Exits 0. Does not run any cleanup.
+- **`os clean --consent-reset`**: wipes `.resolved/os-clean-consent.json`. Prompts `[y/N]` unless `--yes` is passed. Honors `--dry-run` (reports the path it would delete, makes no changes). Logs the deletion to `.logs/os-clean-*.log`. CODE RED on failure: logs exact path + reason.
+
+### Notes
+
+- Both flags are mutually exclusive with normal `os clean` runs (handled before the catalog filter / admin check / banner).
+- After `--consent-reset`, the next destructive category run will prompt for typed `yes` again (recycle, ms-search, obs-recordings, windows-update-old).
+- Per-subcommand invocations (`os clean-recycle`, etc.) read the same consent file -- resetting via aggregate clears it for subcommands too.
+- Bumped from v0.42.0 (request asked for v0.41.1, but version cannot regress -- shipped as v0.42.1 instead).
+
 ## [v0.42.0] -- 2026-04-20
 
 ### Added (OS Clean Phase 2 -- 4 new categories, all aggregate)
