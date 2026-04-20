@@ -68,6 +68,10 @@ $script:CleanCatalog = @(
     @{ B = "E"; Cat = "office";              Desc = "MS Office cache (documents SAFE)" },
     @{ B = "E"; Cat = "whatsapp";            Desc = "WhatsApp cache (chats + login SAFE)" },
     @{ B = "E"; Cat = "telegram";            Desc = "Telegram cache (chats + login SAFE)" },
+    @{ B = "E"; Cat = "zoom";                Desc = "Zoom cache (recordings + chats SAFE)" },
+    @{ B = "E"; Cat = "slack";               Desc = "Slack cache (login + history SAFE)" },
+    @{ B = "E"; Cat = "teams";               Desc = "Teams cache Classic+New (auth + chat SAFE)" },
+    @{ B = "E"; Cat = "onedrive-cache";      Desc = "OneDrive client cache (synced files SAFE)" },
     @{ B = "F"; Cat = "vscode-cache";        Desc = "VS Code cache + logs (workspaces SAFE)" },
     @{ B = "F"; Cat = "npm-cache";           Desc = "npm cache clean --force" },
     @{ B = "F"; Cat = "pip-cache";           Desc = "pip cache purge" },
@@ -87,7 +91,7 @@ function Show-OsHelp {
     Write-Host ""
     Write-Host "  PRIMARY ACTIONS" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "    clean [flags]                                          Run all 36 cleanup categories" -ForegroundColor Green
+    Write-Host "    clean [flags]                                          Run all 40 cleanup categories" -ForegroundColor Green
     Write-Host "      --yes                Auto-consent destructive categories" -ForegroundColor DarkGray
     Write-Host "      --dry-run            Report only (no deletions, no consent file written)" -ForegroundColor DarkGray
     Write-Host "      --skip <a,b,c>       Skip listed categories" -ForegroundColor DarkGray

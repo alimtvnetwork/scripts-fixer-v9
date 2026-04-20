@@ -1384,6 +1384,51 @@ $normalizedCommand = ""
 $hasCommand = -not [string]::IsNullOrWhiteSpace($Command)
 if ($hasCommand) {
     $normalizedCommand = $Command.Trim().ToLower()
+
+    # ── --version / version / -V short-circuit ────────────────────────
+    # Print version + git SHA + readme link, then exit. No git pull, no dispatch.
+    # Note: -v is reserved for VS Code (script 01); we match capital -V via $MyInvocation.Line.
+    $isVersionCommand = $normalizedCommand -in @("--version", "-version", "version")
+    $isCapitalVFlag   = $MyInvocation.Line -cmatch '(^|\s)-V(\s|$)'
+    if ($isVersionCommand -or $isCapitalVFlag) {
+        $ver = Get-ScriptVersion
+        $shortSha = "unknown"
+        $longSha  = "unknown"
+        $branch   = "unknown"
+        $isDirty  = $false
+        try {
+            Push-Location $RootDir
+            $shortSha = (& git rev-parse --short HEAD 2>$null) -join ""
+            $longSha  = (& git rev-parse HEAD 2>$null) -join ""
+            $branch   = (& git rev-parse --abbrev-ref HEAD 2>$null) -join ""
+            $porcelain = & git status --porcelain 2>$null
+            $isDirty   = -not [string]::IsNullOrWhiteSpace(($porcelain -join ""))
+            Pop-Location
+        } catch {
+            try { Pop-Location -ErrorAction SilentlyContinue } catch {}
+        }
+        $hasShort = -not [string]::IsNullOrWhiteSpace($shortSha)
+        if (-not $hasShort) { $shortSha = "no-git" }
+        $dirtyTag = if ($isDirty) { " (dirty)" } else { "" }
+
+        Write-Host ""
+        Write-Host "  scripts-fixer v$ver" -ForegroundColor Magenta
+        Write-Host "  ===============================================" -ForegroundColor DarkGray
+        Write-Host ("  Commit  : {0}{1}" -f $shortSha, $dirtyTag) -ForegroundColor Cyan
+        Write-Host ("  Full SHA: {0}" -f $longSha)               -ForegroundColor DarkGray
+        Write-Host ("  Branch  : {0}" -f $branch)                -ForegroundColor Cyan
+        Write-Host ("  Root    : {0}" -f $RootDir)               -ForegroundColor DarkGray
+        Write-Host ""
+        Write-Host "  Readme  : https://github.com/alimtvnetwork/scripts-fixer-v8/blob/main/readme.md" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "  Disclaimer: This project is provided AS IS, no warranty." -ForegroundColor DarkYellow
+        Write-Host "  Made for fun to save time on OS setup. You are responsible" -ForegroundColor DarkYellow
+        Write-Host "  for anything it changes on your machine." -ForegroundColor DarkYellow
+        Write-Host ""
+        exit 0
+    }
+
+
     $isBareInstallCommand = $normalizedCommand -eq "install"
     $isBareUpdateCommand  = $normalizedCommand -eq "update" -or $normalizedCommand -eq "choco-update" -or $normalizedCommand -eq "upgrade"
     $isBarePathCommand    = $normalizedCommand -eq "path"

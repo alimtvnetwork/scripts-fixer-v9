@@ -3,7 +3,7 @@
     os clean -- Aggregate orchestrator (v0.41.0).
 
 .DESCRIPTION
-    Runs all 36 clean-categories helpers in catalog order. Each helper returns
+    Runs all 40 clean-categories helpers in catalog order. Each helper returns
     the standard result hashtable; the orchestrator accumulates them, then
     prints a per-category summary table + grand total + deduped LOCKED FILES.
 
@@ -149,7 +149,7 @@ $skipList   = Get-MultiArg -Argv $Argv -Name "skip"
 $onlyList   = Get-MultiArg -Argv $Argv -Name "only"
 $bucketList = (Get-MultiArg -Argv $Argv -Name "bucket") | ForEach-Object { $_.ToUpper() }
 
-# ---------- Catalog (32 categories in execution order) ----------
+# ---------- Catalog (40 categories in execution order) ----------
 $catalog = @(
     # Bucket A -- System
     @{ Cat = "chkdsk";              Bucket = "A"; Helper = "chkdsk.ps1" },
@@ -184,7 +184,10 @@ $catalog = @(
     @{ Cat = "office";              Bucket = "E"; Helper = "office.ps1" },
     @{ Cat = "whatsapp";            Bucket = "E"; Helper = "whatsapp.ps1" },
     @{ Cat = "telegram";            Bucket = "E"; Helper = "telegram.ps1" },
-    # Bucket F -- Dev tools
+    @{ Cat = "zoom";                Bucket = "E"; Helper = "zoom.ps1" },
+    @{ Cat = "slack";               Bucket = "E"; Helper = "slack.ps1" },
+    @{ Cat = "teams";               Bucket = "E"; Helper = "teams.ps1" },
+    @{ Cat = "onedrive-cache";      Bucket = "E"; Helper = "onedrive-cache.ps1" },
     @{ Cat = "vscode-cache";        Bucket = "F"; Helper = "vscode-cache.ps1" },
     @{ Cat = "npm-cache";           Bucket = "F"; Helper = "npm-cache.ps1" },
     @{ Cat = "pip-cache";           Bucket = "F"; Helper = "pip-cache.ps1" },

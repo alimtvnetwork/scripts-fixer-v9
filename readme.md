@@ -8,7 +8,7 @@
 [![Windows](https://img.shields.io/badge/Windows-10%2F11-0078D6?logo=windows&logoColor=white)](https://www.microsoft.com/windows)
 [![Scripts](https://img.shields.io/badge/Scripts-51-green)](scripts/)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
-[![Changelog](https://img.shields.io/badge/Changelog-v0.41.0-orange)](changelog.md)
+[![Changelog](https://img.shields.io/badge/Changelog-v0.43.0-orange)](changelog.md)
 
 *One command to set up your entire dev environment. No manual installs. No guesswork.*
 
@@ -61,6 +61,44 @@ cd scripts-fixer
 
 # Show all available scripts
 .\run.ps1
+
+# Show version + git commit + readme link
+.\run.ps1 --version       # also: version, -V
+```
+
+---
+
+## PowerShell execution policy
+
+If Windows blocks the scripts with a red "running scripts is disabled on this system" error,
+unblock the current session (no admin, scope = process only):
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+```
+
+Or run a single script under bypass without changing the policy at all:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run.ps1 -d
+```
+
+To make it permanent for your user (still no admin):
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned -Force
+```
+
+---
+
+## Disclaimer / no warranty
+
+This project is provided **AS IS, with no warranty of any kind**. It is shared **for fun and to save time on OS setup** -- not as a supported product. The scripts touch system-level settings (registry, services, package managers, scheduled tasks, browser caches, etc.); on rare occasions a third-party installer or a future Windows build can interact with them in unexpected ways. **You are responsible for anything these scripts change on your machine.** Always review what a category does (`.\run.ps1 os clean -h`) and use `--dry-run` first when in doubt.
+
+The current running version is always printed by:
+
+```powershell
+.\run.ps1 --version
 ```
 
 ---
