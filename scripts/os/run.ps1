@@ -100,7 +100,7 @@ function Show-OsHelp {
     Write-Host ""
     Write-Host "  PRIMARY ACTIONS" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "    clean [flags]                                          Run all 44 cleanup categories" -ForegroundColor Green
+    Write-Host "    clean [flags]                                          Run all 49 cleanup categories" -ForegroundColor Green
     Write-Host "      --yes                Auto-consent destructive categories" -ForegroundColor DarkGray
     Write-Host "      --dry-run            Report only (no deletions, no consent file written)" -ForegroundColor DarkGray
     Write-Host "      --skip <a,b,c>       Skip listed categories" -ForegroundColor DarkGray
