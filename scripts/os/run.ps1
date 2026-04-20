@@ -5,7 +5,7 @@
 .DESCRIPTION
     Static actions: clean, temp-clean, hib-off/on, flp, add-user, help.
     Dynamic actions: every clean-<name> resolves to clean-categories\<name>.ps1
-    (32 categories, see `os --help`).
+    (36 categories, see `os --help`).
 
 .EXAMPLES
     .\run.ps1 os clean
@@ -65,10 +65,14 @@ $script:CleanCatalog = @(
     @{ B = "E"; Cat = "vlc";                 Desc = "VLC art + media library cache" },
     @{ B = "E"; Cat = "discord";             Desc = "Discord cache (login SAFE)" },
     @{ B = "E"; Cat = "spotify";             Desc = "Spotify cache (offline downloads SAFE)" },
+    @{ B = "E"; Cat = "office";              Desc = "MS Office cache (documents SAFE)" },
+    @{ B = "E"; Cat = "whatsapp";            Desc = "WhatsApp cache (chats + login SAFE)" },
+    @{ B = "E"; Cat = "telegram";            Desc = "Telegram cache (chats + login SAFE)" },
     @{ B = "F"; Cat = "vscode-cache";        Desc = "VS Code cache + logs (workspaces SAFE)" },
     @{ B = "F"; Cat = "npm-cache";           Desc = "npm cache clean --force" },
     @{ B = "F"; Cat = "pip-cache";           Desc = "pip cache purge" },
     @{ B = "F"; Cat = "docker-dangling";     Desc = "docker system prune -f" },
+    @{ B = "F"; Cat = "wsl";                 Desc = "WSL /tmp + apt cache + ~/.cache (rootfs SAFE)" },
     @{ B = "G"; Cat = "obs-recordings";      Desc = "~/Videos *.mkv|*.mp4 >N days (DESTRUCTIVE -- consent)" },
     @{ B = "G"; Cat = "steam-shader";        Desc = "Steam shader cache (all libraries)" },
     @{ B = "G"; Cat = "windows-update-old";  Desc = "DISM ResetBase (DESTRUCTIVE -- consent)" }
@@ -83,7 +87,7 @@ function Show-OsHelp {
     Write-Host ""
     Write-Host "  PRIMARY ACTIONS" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "    clean [flags]                                          Run all 32 cleanup categories" -ForegroundColor Green
+    Write-Host "    clean [flags]                                          Run all 36 cleanup categories" -ForegroundColor Green
     Write-Host "      --yes                Auto-consent destructive categories" -ForegroundColor DarkGray
     Write-Host "      --dry-run            Report only (no deletions, no consent file written)" -ForegroundColor DarkGray
     Write-Host "      --skip <a,b,c>       Skip listed categories" -ForegroundColor DarkGray

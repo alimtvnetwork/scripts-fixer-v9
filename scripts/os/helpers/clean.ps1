@@ -3,7 +3,7 @@
     os clean -- Aggregate orchestrator (v0.41.0).
 
 .DESCRIPTION
-    Runs all 32 clean-categories helpers in catalog order. Each helper returns
+    Runs all 36 clean-categories helpers in catalog order. Each helper returns
     the standard result hashtable; the orchestrator accumulates them, then
     prints a per-category summary table + grand total + deduped LOCKED FILES.
 
@@ -100,12 +100,16 @@ $catalog = @(
     @{ Cat = "vlc";                 Bucket = "E"; Helper = "vlc.ps1" },
     @{ Cat = "discord";             Bucket = "E"; Helper = "discord.ps1" },
     @{ Cat = "spotify";             Bucket = "E"; Helper = "spotify.ps1" },
+    @{ Cat = "office";              Bucket = "E"; Helper = "office.ps1" },
+    @{ Cat = "whatsapp";            Bucket = "E"; Helper = "whatsapp.ps1" },
+    @{ Cat = "telegram";            Bucket = "E"; Helper = "telegram.ps1" },
     # Bucket F -- Dev tools
     @{ Cat = "vscode-cache";        Bucket = "F"; Helper = "vscode-cache.ps1" },
     @{ Cat = "npm-cache";           Bucket = "F"; Helper = "npm-cache.ps1" },
     @{ Cat = "pip-cache";           Bucket = "F"; Helper = "pip-cache.ps1" },
     @{ Cat = "docker-dangling";     Bucket = "F"; Helper = "docker-dangling.ps1" },
-    # Bucket G -- Media / DISM (destructive, typed-yes consent on first run)
+    @{ Cat = "wsl";                 Bucket = "F"; Helper = "wsl.ps1" },
+    # Bucket G -- Media (age-gated)
     @{ Cat = "obs-recordings";      Bucket = "G"; Helper = "obs-recordings.ps1" },
     @{ Cat = "steam-shader";        Bucket = "G"; Helper = "steam-shader.ps1" },
     @{ Cat = "windows-update-old";  Bucket = "G"; Helper = "windows-update-old.ps1" }

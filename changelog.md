@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.42.0] -- 2026-04-20
+
+### Added (OS Clean Phase 2 -- 4 new categories, all aggregate)
+
+- **`os clean-wsl`** (Bucket F): cleans `/tmp`, `/var/tmp`, `/var/cache/apt/archives`, `~/.cache` inside every registered WSL distro via `wsl.exe -d <name> -- bash`. Skips `/home`, `/etc`, distro rootfs. No consent gate (non-destructive).
+- **`os clean-office`** (Bucket E): wipes MS Office 16.0 cache dirs under `%LOCALAPPDATA%\Microsoft\Office\16.0\` (`OfficeFileCache`, `Wef`, `PowerPoint\PptCache`, `OneNote\Backup\OfficeFileCache`, `Telemetry`, `OfficeSetup`, `Licensing\Backup`). User documents and recent-file lists are NEVER touched.
+- **`os clean-whatsapp`** (Bucket E): wipes WhatsApp cache for both Store (MSIX `5319275A.WhatsAppDesktop_*`) and Win32 installs. Cleans `Cache`, `Code Cache`, `GPUCache`, `AC\Temp`, `AC\INetCache`. Chat history, media library, and login state preserved.
+- **`os clean-telegram`** (Bucket E): wipes `tdata\user_data*\cache`, `media_cache`, `emoji` from `%APPDATA%\Telegram Desktop` and `%LOCALAPPDATA%\Telegram Desktop`. Chats, login, and saved files preserved.
+
+### Aggregate
+
+- `os clean` now runs **36 categories** (was 32). All 4 new categories are wired into the aggregate flow and respect `--dry-run`, `--skip`, `--only`, `--bucket E`, `--bucket F`.
+- `os --help` updated; help count and dispatcher synopsis bumped to 36.
+
+### Safety
+
+- All 4 new categories are **non-destructive** (cache-only) and require **no consent gate**.
+- WSL helper detects missing `wsl.exe` and missing distros gracefully (returns `skip`, no errors).
+- Office, WhatsApp, Telegram helpers detect missing installs and emit `skip` without failing.
+
 ## [v0.41.0] -- 2026-04-19
 
 ### Added (OS Clean Expansion -- 32 categories, all aggregate, consent-gated)
