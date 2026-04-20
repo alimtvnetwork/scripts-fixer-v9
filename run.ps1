@@ -2062,6 +2062,8 @@ if ($hasInstallKeywords) {
             # Stream a remote PowerShell installer via 'Invoke-RestMethod | Invoke-Expression'
             $url   = $entry.Url
             $label = $entry.Label
+            $expectedSha = $entry.Sha256
+            $hasExpectedSha = -not [string]::IsNullOrWhiteSpace($expectedSha)
             $hasLabel = -not [string]::IsNullOrWhiteSpace($label)
             $displayLabel = if ($hasLabel) { $label } else { $entry.Key }
 
@@ -2070,6 +2072,11 @@ if ($hasInstallKeywords) {
             Write-Host "  $displayLabel" -ForegroundColor DarkGray
             Write-Host "  Source: $url" -ForegroundColor DarkGray
             Write-Host "  Command: irm $url | iex" -ForegroundColor DarkGray
+            if ($hasExpectedSha) {
+                Write-Host "  SHA256 : $expectedSha (pinned -- verified before exec)" -ForegroundColor DarkGray
+            } else {
+                Write-Host "  SHA256 : (not pinned -- add 'sha256' to remote.$($entry.Key) in install-keywords.json to enable integrity check)" -ForegroundColor DarkYellow
+            }
             Write-Host ""
 
             $remoteFailed = $false
@@ -2081,11 +2088,40 @@ if ($hasInstallKeywords) {
                     $remoteFailed = $true
                     $remoteError  = "Remote URL returned an empty body"
                 } else {
-                    Invoke-Expression $script
-                    $code = $LASTEXITCODE
-                    if ($null -ne $code -and $code -ne 0) {
-                        $remoteFailed = $true
-                        $remoteError  = "Remote installer exited with code $code"
+                    # ── SHA256 integrity check (CODE RED: never exec unverified body) ──
+                    $isHashMismatch = $false
+                    if ($hasExpectedSha) {
+                        try {
+                            $bytes = [System.Text.Encoding]::UTF8.GetBytes("$script")
+                            $sha = [System.Security.Cryptography.SHA256]::Create()
+                            $hashBytes = $sha.ComputeHash($bytes)
+                            $sha.Dispose()
+                            $actualSha = ([System.BitConverter]::ToString($hashBytes) -replace '-', '').ToLowerInvariant()
+                        } catch {
+                            $remoteFailed = $true
+                            $remoteError  = "SHA256 computation failed: $($_.Exception.Message)"
+                            $isHashMismatch = $true
+                        }
+                        if (-not $remoteFailed) {
+                            $isMatch = $actualSha -eq $expectedSha
+                            if (-not $isMatch) {
+                                $isHashMismatch = $true
+                                $remoteFailed = $true
+                                $remoteError  = "SHA256 mismatch -- refusing to execute unverified body. Expected: $expectedSha  Actual: $actualSha  URL: $url  Pin source: install-keywords.json -> remote.$($entry.Key).sha256"
+                            } else {
+                                Write-Host "  [  OK  ] " -ForegroundColor Green -NoNewline
+                                Write-Host "SHA256 verified ($actualSha)"
+                            }
+                        }
+                    }
+
+                    if (-not $isHashMismatch) {
+                        Invoke-Expression $script
+                        $code = $LASTEXITCODE
+                        if ($null -ne $code -and $code -ne 0) {
+                            $remoteFailed = $true
+                            $remoteError  = "Remote installer exited with code $code"
+                        }
                     }
                 }
             } catch {
