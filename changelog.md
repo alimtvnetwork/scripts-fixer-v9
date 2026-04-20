@@ -2,6 +2,36 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.43.1] -- 2026-04-20
+
+### Added (per-event identity stamping)
+
+Every event written via `Write-Log` and `Write-FileError` in `scripts/shared/logging.ps1` now carries its own `projectVersion`, `invokedFrom`, and `scriptName` fields inside the `events[]` / `errors[]` / `warnings[]` arrays of `.logs/*.json`. This means a single grepped, split, or concatenated log line is still fully traceable to its origin script and version -- the file-level identity header (added in v0.42.2) is no longer the only source of truth.
+
+#### Mechanism
+
+- New module-scoped cache `$script:_LogIdentity` holds the resolved `{projectVersion, invokedFrom}` for the entire session.
+- `Initialize-Logging` populates the cache once via `Get-LogIdentityFields` (wrapped in `try/catch`; falls back to `"unknown"` on resolution failure). The call stack is walked **only once per session** instead of once per event.
+- `Write-Log` and `Write-FileError` now use `[ordered]@{}` event hashtables and append three identity fields after the existing payload:
+  - `projectVersion` -- e.g. `"0.43.1"` (from `scripts/version.json`)
+  - `invokedFrom` -- e.g. `"scripts/os/run.ps1"` (top-of-callstack `.ps1`, project-root-relative, forward slashes)
+  - `scriptName` -- the sanitised log name from `Initialize-Logging` (e.g. `"os-clean"`), so events grouped by run are also self-labelled.
+- `Save-LogFile` now reuses the cached identity instead of re-resolving it; the file-level header still includes the same fields in the same positions, so existing consumers see no breaking change.
+- Both `Write-Log` and `Write-FileError` defensively re-resolve identity if the cache is empty (e.g. an event is logged before `Initialize-Logging` ran). Worst case, both fields read `"unknown"` -- never throws.
+
+#### Backward compatibility
+
+- File-level top fields (`projectVersion`, `invokedFrom`, `scriptName`, `status`, `startTime`, `endTime`, `duration`, `eventCount`, `errorCount`, `warnCount`, `events`, `errors`, `warnings`) keep their existing positions and meanings.
+- Existing event fields (`timestamp`, `level`, `message`, plus `type`/`filePath`/`operation`/`reason`/`module`/`fallback` for file-errors) are unchanged. The three new identity fields are appended; consumers that read by name are unaffected.
+- Old `.logs/*.json` files are not retroactively rewritten -- only events emitted from this run forward gain the per-event identity.
+
+### Bumped
+
+- `scripts/version.json`: 0.43.0 -> 0.43.1.
+
+> Note: requested as v0.42.3, but on-disk state is already v0.43.0 (after the v0.43.0 audit + re-apply batch). Increment lands as **v0.43.1** (smallest forward step, semver forward-only).
+
+
 ## [v0.43.0] -- 2026-04-20
 
 ### Audit + consolidated re-apply
