@@ -1840,7 +1840,21 @@ if ($hasCommand) {
         exit 0
     } elseif ($isBareDoctorCommand) {
         Show-VersionHeader
-        Invoke-DoctorCommand
+        # Detect --self-check flag in remaining args
+        $isSelfCheck = $false
+        if ($null -ne $Install -and $Install.Count -gt 0) {
+            foreach ($a in $Install) {
+                $low = "$a".Trim().ToLower()
+                if ($low -in @("--self-check", "-self-check", "selfcheck", "--selfcheck", "self-check")) {
+                    $isSelfCheck = $true
+                }
+            }
+        }
+        if ($isSelfCheck) {
+            Invoke-DoctorSelfCheck
+        } else {
+            Invoke-DoctorCommand
+        }
         exit 0
     } elseif ($isBareModelsCommand) {
         Show-VersionHeader
