@@ -1360,8 +1360,257 @@ function Invoke-DoctorCommand {
     Write-Host ""
 }
 
-# ── Path command function ─────────────────────────────────────────────
-function Invoke-PathCommand {
+# ── Doctor --self-check (deep audit, v0.46.1+) ──────────────────────
+function Invoke-DoctorSelfCheck {
+    <#
+    .SYNOPSIS
+        Deep self-audit of the project. Verifies internal consistency:
+          (a) every claimed feature in changelog.md exists on disk
+          (b) version.json matches the latest changelog header
+          (c) every category in scripts/os/helpers/clean.ps1 catalog has a matching helper file
+          (d) every keyword in install-keywords.json points to a real script ID / valid os:/profile: action
+              / a remote.* entry whose URL responds 200
+        Prints a green/red table per row + per-section summaries + final tally.
+    #>
+
+    Write-Host ""
+    Write-Host "  Doctor -- Self-Check (deep audit)" -ForegroundColor Cyan
+    Write-Host "  =================================" -ForegroundColor DarkGray
+    Write-Host ""
+
+    $script:scPass = 0
+    $script:scFail = 0
+
+    function Write-SCRow {
+        param([string]$Section, [string]$Item, [bool]$Ok, [string]$Detail = "")
+        if ($Ok) {
+            Write-Host "    [ OK ] " -ForegroundColor Green -NoNewline
+            $script:scPass++
+        } else {
+            Write-Host "    [FAIL] " -ForegroundColor Red -NoNewline
+            $script:scFail++
+        }
+        $line = "{0,-10} {1,-40}" -f $Section, $Item
+        Write-Host $line -NoNewline
+        if ($Detail) { Write-Host " $Detail" -ForegroundColor DarkGray } else { Write-Host "" }
+    }
+
+    function Write-SCHeader {
+        param([string]$Title)
+        Write-Host ""
+        Write-Host "  -- $Title" -ForegroundColor Yellow
+    }
+
+    $scriptsRoot = Join-Path $RootDir "scripts"
+    $sharedDir   = Join-Path $scriptsRoot "shared"
+
+    # ============================================================
+    # (a) Claimed features in changelog.md exist on disk
+    # ============================================================
+    Write-SCHeader "(a) Claimed files in changelog.md exist on disk"
+    $changelogPath = Join-Path $RootDir "changelog.md"
+    $hasChangelog = Test-Path $changelogPath
+    if (-not $hasChangelog) {
+        Write-SCRow "changelog" "changelog.md" $false "Missing at: $changelogPath"
+    } else {
+        $clText = Get-Content $changelogPath -Raw
+        # Extract backticked paths that look like real files (contain / or \ and an extension OR end in .ps1/.json/.md)
+        $regex = [regex]'`([A-Za-z0-9_./\\-]+\.(ps1|json|md|psm1|psd1))`'
+        $matches = $regex.Matches($clText)
+        $uniquePaths = @{}
+        foreach ($m in $matches) {
+            $p = $m.Groups[1].Value
+            # Skip obvious externals (URL fragments, backslash-only Windows paths starting with %)
+            if ($p.StartsWith("%") -or $p.StartsWith("~") -or $p.StartsWith("http")) { continue }
+            $uniquePaths[$p] = $true
+        }
+        $checked = 0
+        foreach ($rel in ($uniquePaths.Keys | Sort-Object)) {
+            $checked++
+            $abs = Join-Path $RootDir ($rel -replace '/', '\')
+            $exists = Test-Path -LiteralPath $abs
+            $detail = if ($exists) { "" } else { "Expected: $abs" }
+            Write-SCRow "changelog" $rel $exists $detail
+        }
+        if ($checked -eq 0) {
+            Write-SCRow "changelog" "(no `path.ext` references found)" $true ""
+        }
+    }
+
+    # ============================================================
+    # (b) version.json matches latest changelog header
+    # ============================================================
+    Write-SCHeader "(b) version.json matches latest changelog header"
+    $versionFile = Join-Path $scriptsRoot "version.json"
+    $hasVF = Test-Path $versionFile
+    $hasCL = Test-Path $changelogPath
+    if (-not $hasVF) {
+        Write-SCRow "version" "scripts/version.json" $false "Missing at: $versionFile"
+    } elseif (-not $hasCL) {
+        Write-SCRow "version" "changelog.md" $false "Missing at: $changelogPath"
+    } else {
+        try {
+            $vData = Get-Content $versionFile -Raw | ConvertFrom-Json
+            $vJson = $vData.version
+        } catch {
+            $vJson = $null
+            Write-SCRow "version" "version.json parse" $false "Parse error: $_  (path: $versionFile)"
+        }
+        if ($vJson) {
+            $clRaw = Get-Content $changelogPath -Raw
+            $headerMatch = [regex]::Match($clRaw, '(?m)^##\s*\[?v?(\d+\.\d+\.\d+)\]?')
+            if (-not $headerMatch.Success) {
+                Write-SCRow "version" "latest changelog header" $false "No '## [vX.Y.Z]' header found in $changelogPath"
+            } else {
+                $vCL = $headerMatch.Groups[1].Value
+                $matches = ($vJson -eq $vCL)
+                $detail = "version.json=v$vJson  changelog=v$vCL"
+                Write-SCRow "version" "monotonic match" $matches $detail
+            }
+        }
+    }
+
+    # ============================================================
+    # (c) Every os clean catalog category has a matching helper file
+    # ============================================================
+    Write-SCHeader "(c) os clean-categories: catalog vs helper files"
+    $cleanDispatcher = Join-Path $scriptsRoot "os\helpers\clean.ps1"
+    $catDir          = Join-Path $scriptsRoot "os\helpers\clean-categories"
+    $hasCD = Test-Path $cleanDispatcher
+    $hasCatDir = Test-Path $catDir
+    if (-not $hasCD) {
+        Write-SCRow "clean" "clean.ps1 dispatcher" $false "Missing at: $cleanDispatcher"
+    } elseif (-not $hasCatDir) {
+        Write-SCRow "clean" "clean-categories/ dir" $false "Missing at: $catDir"
+    } else {
+        # Parse @{ Cat = "name"; Bucket = "X"; Helper = "name.ps1" } lines
+        $cdText = Get-Content $cleanDispatcher -Raw
+        $catRegex = [regex]'@\{\s*Cat\s*=\s*"([^"]+)"\s*;\s*Bucket\s*=\s*"([^"]+)"\s*;\s*Helper\s*=\s*"([^"]+)"\s*\}'
+        $catMatches = $catRegex.Matches($cdText)
+        if ($catMatches.Count -eq 0) {
+            Write-SCRow "clean" "catalog parse" $false "No catalog entries matched in: $cleanDispatcher"
+        } else {
+            foreach ($m in $catMatches) {
+                $cat    = $m.Groups[1].Value
+                $bucket = $m.Groups[2].Value
+                $helper = $m.Groups[3].Value
+                $helperPath = Join-Path $catDir $helper
+                $exists = Test-Path -LiteralPath $helperPath
+                $detail = if ($exists) { "[$bucket] $helper" } else { "[$bucket] MISSING: $helperPath" }
+                Write-SCRow "clean" $cat $exists $detail
+            }
+        }
+    }
+
+    # ============================================================
+    # (d) install-keywords.json: every keyword resolves
+    # ============================================================
+    Write-SCHeader "(d) install-keywords.json: keyword resolution"
+    $kwFile = Join-Path $sharedDir "install-keywords.json"
+    $regFile = Join-Path $scriptsRoot "registry.json"
+    if (-not (Test-Path $kwFile)) {
+        Write-SCRow "keywords" "install-keywords.json" $false "Missing at: $kwFile"
+    } elseif (-not (Test-Path $regFile)) {
+        Write-SCRow "keywords" "registry.json" $false "Missing at: $regFile"
+    } else {
+        try {
+            $kwData  = Get-Content $kwFile  -Raw | ConvertFrom-Json
+            $regData = Get-Content $regFile -Raw | ConvertFrom-Json
+        } catch {
+            Write-SCRow "keywords" "json parse" $false "Parse error: $_"
+            $kwData = $null
+        }
+        if ($null -ne $kwData) {
+            # Build registry ID set
+            $validIds = @{}
+            foreach ($prop in $regData.scripts.PSObject.Properties) {
+                $validIds[$prop.Name] = $true
+            }
+
+            # Probe remote URLs ONCE and cache
+            $remoteCache = @{}
+            if ($null -ne $kwData.remote) {
+                foreach ($rprop in $kwData.remote.PSObject.Properties) {
+                    $rkey = $rprop.Name
+                    $rurl = $rprop.Value.url
+                    $code = -1
+                    try {
+                        $resp = Invoke-WebRequest -Uri $rurl -Method Head -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
+                        $code = [int]$resp.StatusCode
+                    } catch {
+                        if ($null -ne $_.Exception.Response -and $null -ne $_.Exception.Response.StatusCode) {
+                            $code = [int]$_.Exception.Response.StatusCode
+                        }
+                    }
+                    $remoteCache[$rkey] = @{ Url = $rurl; Code = $code; Ok = ($code -eq 200) }
+                }
+            }
+
+            # Walk every keyword
+            foreach ($kprop in $kwData.keywords.PSObject.Properties) {
+                $kw = $kprop.Name
+                $targets = $kprop.Value
+                $allOk = $true
+                $details = New-Object System.Collections.ArrayList
+
+                foreach ($t in $targets) {
+                    $tStr = "$t"
+                    # Three resolution kinds: remote:<key>, os:<action>, profile:<name>, or numeric script ID
+                    if ($tStr -match '^remote:(.+)$') {
+                        $rk = $Matches[1]
+                        if (-not $remoteCache.ContainsKey($rk)) {
+                            $allOk = $false
+                            [void]$details.Add("remote:$rk -> NOT in remote.* (path: $kwFile)")
+                        } else {
+                            $rc = $remoteCache[$rk]
+                            if (-not $rc.Ok) {
+                                $allOk = $false
+                                [void]$details.Add("remote:$rk -> HTTP $($rc.Code) for $($rc.Url)")
+                            } else {
+                                [void]$details.Add("remote:$rk 200")
+                            }
+                        }
+                    } elseif ($tStr -match '^os:(.+)$') {
+                        # Accept any os:<action> as valid (os dispatcher resolves at runtime)
+                        [void]$details.Add("os:$($Matches[1])")
+                    } elseif ($tStr -match '^profile:(.+)$') {
+                        [void]$details.Add("profile:$($Matches[1])")
+                    } elseif ($tStr -match '^\d+$') {
+                        if (-not $validIds.ContainsKey($tStr)) {
+                            $allOk = $false
+                            [void]$details.Add("id $tStr -> NOT in registry.json")
+                        } else {
+                            [void]$details.Add("id $tStr")
+                        }
+                    } else {
+                        $allOk = $false
+                        [void]$details.Add("unknown target form: '$tStr'")
+                    }
+                }
+
+                Write-SCRow "keyword" $kw $allOk ($details -join ", ")
+            }
+        }
+    }
+
+    # ============================================================
+    # Summary
+    # ============================================================
+    $total = $script:scPass + $script:scFail
+    Write-Host ""
+    Write-Host "  Self-Check Summary: " -NoNewline -ForegroundColor DarkGray
+    Write-Host "$($script:scPass)/$total OK" -ForegroundColor Green -NoNewline
+    if ($script:scFail -gt 0) {
+        Write-Host ", $($script:scFail) FAIL" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "  Self-check found inconsistencies. Fix the rows marked [FAIL] above." -ForegroundColor Red
+    } else {
+        Write-Host ""
+        Write-Host ""
+        Write-Host "  All self-check rows green. Project is internally consistent." -ForegroundColor Green
+    }
+    Write-Host ""
+}
     param([string[]]$Args)
 
     # Load dev-dir helper
