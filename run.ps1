@@ -1452,18 +1452,38 @@ if ($hasCommand) {
     }
 
 
-    # ── logs --tail [N] short-circuit ─────────────────────────────────
-    # Print the last N events (default 20) across all .logs/*.json files,
-    # grouped by invokedFrom, with the projectVersion column visible.
+    # ── logs subcommand short-circuit ─────────────────────────────────
+    # .\run.ps1 logs [--tail N] [--grep <pattern>] [--since <duration>] [--errors] [--case-sensitive]
+    # Prints events from .logs/*.json grouped by invokedFrom, with projectVersion.
     # Exits before any git pull / dispatch -- safe in restricted shells.
     $isLogsCommand = $normalizedCommand -eq "logs"
     if ($isLogsCommand) {
         $logsArgs = @($Install)
         $tailN = 20
         $isTailRequested = $false
+        $grepPattern = $null
+        $isCaseSensitive = $false
+        $sinceCutoff = $null
+        $sinceLabel  = $null
+        $isErrorsOnly = $false
+
+        function Convert-DurationToSpan {
+            param([string]$Raw)
+            if ([string]::IsNullOrWhiteSpace($Raw)) { return $null }
+            $r = $Raw.Trim().ToLower()
+            if ($r -match '^(\d+)\s*(s|sec|secs|second|seconds)$')          { return [TimeSpan]::FromSeconds([int]$Matches[1]) }
+            if ($r -match '^(\d+)\s*(m|min|mins|minute|minutes)$')          { return [TimeSpan]::FromMinutes([int]$Matches[1]) }
+            if ($r -match '^(\d+)\s*(h|hr|hrs|hour|hours)$')                { return [TimeSpan]::FromHours([int]$Matches[1]) }
+            if ($r -match '^(\d+)\s*(d|day|days)$')                         { return [TimeSpan]::FromDays([int]$Matches[1]) }
+            if ($r -match '^(\d+)\s*(w|wk|wks|week|weeks)$')                { return [TimeSpan]::FromDays([int]$Matches[1] * 7) }
+            return $null
+        }
+
         for ($i = 0; $i -lt $logsArgs.Count; $i++) {
             $a = "$($logsArgs[$i])".Trim()
-            $isTailFlag = $a -in @("--tail", "-tail", "tail")
+            $aLower = $a.ToLower()
+
+            $isTailFlag = $aLower -in @("--tail", "-tail", "tail")
             if ($isTailFlag) {
                 $isTailRequested = $true
                 $hasInlineN = ($i + 1) -lt $logsArgs.Count
@@ -1473,15 +1493,81 @@ if ($hasCommand) {
                         $tailN = $parsed
                     }
                 }
+                continue
             }
-            $isHelp = $a -in @("--help", "-h", "help")
+
+            if ($aLower -match '^--tail=(\d+)$') {
+                $isTailRequested = $true
+                $tailN = [int]$Matches[1]
+                continue
+            }
+
+            $isGrepFlag = $aLower -in @("--grep", "-grep", "grep")
+            if ($isGrepFlag -and ($i + 1) -lt $logsArgs.Count) {
+                $grepPattern = "$($logsArgs[$i + 1])"
+                continue
+            }
+            if ($a -match '^--grep=(.+)$') {
+                $grepPattern = $Matches[1]
+                continue
+            }
+
+            $isSinceFlag = $aLower -in @("--since", "-since", "since")
+            if ($isSinceFlag -and ($i + 1) -lt $logsArgs.Count) {
+                $sinceLabel = "$($logsArgs[$i + 1])"
+                continue
+            }
+            if ($a -match '^--since=(.+)$') {
+                $sinceLabel = $Matches[1]
+                continue
+            }
+
+            if ($aLower -in @("--errors", "-errors", "errors", "--errors-only")) { $isErrorsOnly = $true; continue }
+            if ($aLower -in @("--case-sensitive", "-case-sensitive", "--case", "-case")) { $isCaseSensitive = $true; continue }
+
+            $isHelp = $aLower -in @("--help", "-h", "help")
             if ($isHelp) {
                 Write-Host ""
-                Write-Host "  Usage: .\run.ps1 logs --tail [N]" -ForegroundColor Cyan
-                Write-Host "    Prints the last N events from .logs/*.json (default 20)," -ForegroundColor DarkGray
-                Write-Host "    grouped by invokedFrom, showing projectVersion per event." -ForegroundColor DarkGray
+                Write-Host "  Usage: .\run.ps1 logs [--tail N] [--grep <pattern>] [--since <duration>] [--errors] [--case-sensitive]" -ForegroundColor Cyan
+                Write-Host ""
+                Write-Host "  Flags:" -ForegroundColor Yellow
+                Write-Host "    --tail N            Last N events (default 20)" -ForegroundColor DarkGray
+                Write-Host "    --grep <pattern>    Filter events whose .message matches regex (case-insensitive by default)" -ForegroundColor DarkGray
+                Write-Host "    --since <duration>  Only events newer than the window. Examples: 30m, 1h, 2d, 1w" -ForegroundColor DarkGray
+                Write-Host "    --errors            Only level=fail and level=warn (also reads .logs/*-error.json)" -ForegroundColor DarkGray
+                Write-Host "    --case-sensitive    Make --grep case-sensitive" -ForegroundColor DarkGray
+                Write-Host "    --help              Show this help and exit" -ForegroundColor DarkGray
+                Write-Host ""
+                Write-Host "  All filters compose. Output is grouped by invokedFrom and color-coded by level." -ForegroundColor DarkGray
                 Write-Host ""
                 exit 0
+            }
+        }
+
+        # Resolve --since cutoff
+        if ($null -ne $sinceLabel) {
+            $span = Convert-DurationToSpan -Raw $sinceLabel
+            $isSpanInvalid = $null -eq $span
+            if ($isSpanInvalid) {
+                Write-Host ""
+                Write-Host "  [ FAIL ] " -ForegroundColor Red -NoNewline
+                Write-Host "--since '$sinceLabel' is not a recognised duration. Use formats like 30m, 1h, 2d, 1w."
+                exit 1
+            }
+            $sinceCutoff = (Get-Date).Subtract($span)
+        }
+
+        # Validate --grep regex up front (so we fail fast, not per-event)
+        $grepRegex = $null
+        if ($null -ne $grepPattern) {
+            try {
+                $opts = if ($isCaseSensitive) { [System.Text.RegularExpressions.RegexOptions]::None } else { [System.Text.RegularExpressions.RegexOptions]::IgnoreCase }
+                $grepRegex = New-Object System.Text.RegularExpressions.Regex($grepPattern, $opts)
+            } catch {
+                Write-Host ""
+                Write-Host "  [ FAIL ] " -ForegroundColor Red -NoNewline
+                Write-Host "--grep '$grepPattern' is not a valid regex: $($_.Exception.Message)"
+                exit 1
             }
         }
 
@@ -1496,11 +1582,11 @@ if ($hasCommand) {
             exit 0
         }
 
-        # Collect events from every *.json (skip *-error.json -- those events
-        # are duplicates of entries already in the main file).
+        # Collect events. Default: skip *-error.json (duplicates).
+        # When --errors is on: ALSO read *-error.json so dedicated error logs are surfaced.
         $allEvents = New-Object System.Collections.ArrayList
         $logFiles = Get-ChildItem -LiteralPath $logsDir -Filter "*.json" -File -ErrorAction SilentlyContinue |
-                    Where-Object { $_.Name -notlike "*-error.json" }
+                    Where-Object { $isErrorsOnly -or ($_.Name -notlike "*-error.json") }
         $hasNoLogFiles = $logFiles.Count -eq 0
         if ($hasNoLogFiles) {
             Write-Host ""
@@ -1518,32 +1604,57 @@ if ($hasCommand) {
                 Write-Host "Could not parse log file: $($lf.FullName) -- Reason: $($_.Exception.Message)"
                 continue
             }
-            $hasEvents = $payload.PSObject.Properties['events'] -and $payload.events
-            if (-not $hasEvents) { continue }
-            # Per-file fallbacks for events emitted before per-event identity (pre-v0.43.1)
             $fileVer    = if ($payload.PSObject.Properties['projectVersion']) { "$($payload.projectVersion)" } else { "unknown" }
             $fileInvoke = if ($payload.PSObject.Properties['invokedFrom'])    { "$($payload.invokedFrom)"    } else { "unknown" }
             $fileScript = if ($payload.PSObject.Properties['scriptName'])     { "$($payload.scriptName)"     } else { ($lf.BaseName) }
-            foreach ($ev in $payload.events) {
-                $ts = if ($ev.PSObject.Properties['timestamp']) { "$($ev.timestamp)" } else { "" }
-                $lv = if ($ev.PSObject.Properties['level'])     { "$($ev.level)"     } else { "info" }
-                $ms = if ($ev.PSObject.Properties['message'])   { "$($ev.message)"   } else { "" }
-                $pv = if ($ev.PSObject.Properties['projectVersion']) { "$($ev.projectVersion)" } else { $fileVer }
-                $iv = if ($ev.PSObject.Properties['invokedFrom'])    { "$($ev.invokedFrom)"    } else { $fileInvoke }
-                $sn = if ($ev.PSObject.Properties['scriptName'])     { "$($ev.scriptName)"     } else { $fileScript }
-                $sortKey = $lf.LastWriteTime
-                $parsedDate = [datetime]::MinValue
-                if ([datetime]::TryParse($ts, [ref]$parsedDate)) { $sortKey = $parsedDate }
-                $allEvents.Add([pscustomobject]@{
-                    SortKey        = $sortKey
-                    Timestamp      = $ts
-                    Level          = $lv
-                    Message        = $ms
-                    ProjectVersion = $pv
-                    InvokedFrom    = $iv
-                    ScriptName     = $sn
-                    SourceFile     = $lf.Name
-                }) | Out-Null
+
+            # Pull from events[], errors[], warnings[] -- whichever the file has.
+            $sources = @()
+            if ($payload.PSObject.Properties['events']   -and $payload.events)   { $sources += ,@($payload.events) }
+            if ($payload.PSObject.Properties['errors']   -and $payload.errors)   { $sources += ,@($payload.errors) }
+            if ($payload.PSObject.Properties['warnings'] -and $payload.warnings) { $sources += ,@($payload.warnings) }
+
+            foreach ($arr in $sources) {
+                foreach ($ev in $arr) {
+                    $ts = if ($ev.PSObject.Properties['timestamp']) { "$($ev.timestamp)" } else { "" }
+                    $lv = if ($ev.PSObject.Properties['level'])     { "$($ev.level)"     } else { "info" }
+                    $ms = if ($ev.PSObject.Properties['message'])   { "$($ev.message)"   } else { "" }
+                    $pv = if ($ev.PSObject.Properties['projectVersion']) { "$($ev.projectVersion)" } else { $fileVer }
+                    $iv = if ($ev.PSObject.Properties['invokedFrom'])    { "$($ev.invokedFrom)"    } else { $fileInvoke }
+                    $sn = if ($ev.PSObject.Properties['scriptName'])     { "$($ev.scriptName)"     } else { $fileScript }
+                    $sortKey = $lf.LastWriteTime
+                    $parsedDate = [datetime]::MinValue
+                    if ([datetime]::TryParse($ts, [ref]$parsedDate)) { $sortKey = $parsedDate }
+
+                    # ---- filter: --errors ---------------------------------------------
+                    if ($isErrorsOnly) {
+                        $isErrorLevel = $lv -in @("fail", "warn", "error")
+                        if (-not $isErrorLevel) { continue }
+                    }
+
+                    # ---- filter: --since ----------------------------------------------
+                    if ($null -ne $sinceCutoff) {
+                        $isStale = $sortKey -lt $sinceCutoff
+                        if ($isStale) { continue }
+                    }
+
+                    # ---- filter: --grep -----------------------------------------------
+                    if ($null -ne $grepRegex) {
+                        $isMatch = $grepRegex.IsMatch($ms)
+                        if (-not $isMatch) { continue }
+                    }
+
+                    $allEvents.Add([pscustomobject]@{
+                        SortKey        = $sortKey
+                        Timestamp      = $ts
+                        Level          = $lv
+                        Message        = $ms
+                        ProjectVersion = $pv
+                        InvokedFrom    = $iv
+                        ScriptName     = $sn
+                        SourceFile     = $lf.Name
+                    }) | Out-Null
+                }
             }
         }
 
@@ -1551,7 +1662,15 @@ if ($hasCommand) {
         if ($totalEvents -eq 0) {
             Write-Host ""
             Write-Host "  [ INFO ] " -ForegroundColor Cyan -NoNewline
-            Write-Host "Found $($logFiles.Count) log file(s) but zero events inside events[]."
+            $reason = "Found $($logFiles.Count) log file(s) but zero events match the active filters."
+            Write-Host $reason
+            $appliedFilters = @()
+            if ($isErrorsOnly)        { $appliedFilters += "--errors" }
+            if ($null -ne $grepRegex) { $appliedFilters += "--grep '$grepPattern'" }
+            if ($null -ne $sinceCutoff) { $appliedFilters += "--since $sinceLabel" }
+            if ($appliedFilters.Count -gt 0) {
+                Write-Host "  Active filters: $($appliedFilters -join ', ')" -ForegroundColor DarkGray
+            }
             Write-Host ""
             exit 0
         }
@@ -1559,12 +1678,18 @@ if ($hasCommand) {
         $tail = $allEvents | Sort-Object SortKey | Select-Object -Last $tailN
         $groups = $tail | Group-Object InvokedFrom | Sort-Object { ($_.Group | Measure-Object SortKey -Maximum).Maximum }
 
-        $headerLabel = if ($isTailRequested) { "logs --tail $tailN" } else { "logs (default tail $tailN)" }
+        $headerParts = @()
+        if ($isTailRequested) { $headerParts += "--tail $tailN" } else { $headerParts += "(default tail $tailN)" }
+        if ($isErrorsOnly)        { $headerParts += "--errors" }
+        if ($null -ne $grepRegex) { $headerParts += "--grep '$grepPattern'$(if ($isCaseSensitive) {' (case-sensitive)'} else {''})" }
+        if ($null -ne $sinceCutoff) { $headerParts += "--since $sinceLabel" }
+        $headerLabel = "logs " + ($headerParts -join " ")
+
         Write-Host ""
         Write-Host "  $headerLabel  --  showing $($tail.Count) of $totalEvents event(s) across $($logFiles.Count) file(s)" -ForegroundColor Magenta
         Write-Host "  ===============================================================" -ForegroundColor DarkGray
 
-        $levelColors = @{ ok = "Green"; fail = "Red"; warn = "Yellow"; skip = "DarkGray"; info = "Cyan" }
+        $levelColors = @{ ok = "Green"; fail = "Red"; warn = "Yellow"; error = "Red"; skip = "DarkGray"; info = "Cyan" }
         foreach ($g in $groups) {
             $groupVersions = $g.Group | Select-Object -ExpandProperty ProjectVersion -Unique
             $primaryVersion = ($g.Group | Sort-Object SortKey | Select-Object -Last 1).ProjectVersion
@@ -1580,7 +1705,7 @@ if ($hasCommand) {
                 $color = if ($levelColors.ContainsKey($e.Level)) { $levelColors[$e.Level] } else { "Gray" }
                 $shortTs = $e.Timestamp
                 if ($shortTs.Length -ge 19) { $shortTs = $shortTs.Substring(0, 19) }
-                $line = "    {0}  [{1,-4}]  {2}" -f $shortTs, $e.Level, $e.Message
+                $line = "    {0}  [{1,-5}]  {2}" -f $shortTs, $e.Level, $e.Message
                 Write-Host $line -ForegroundColor $color
             }
         }
