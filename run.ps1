@@ -700,6 +700,7 @@ function Resolve-InstallKeywords {
     $keywordData = Get-Content $keywordsFile -Raw | ConvertFrom-Json
     $keywordMap = $keywordData.keywords
     $modesMap  = $keywordData.modes
+    $remoteMap = $keywordData.remote
 
     $tokens = [System.Collections.Generic.List[string]]::new()
     foreach ($keywordGroup in $Keywords) {
@@ -745,12 +746,32 @@ function Resolve-InstallKeywords {
         # Determine mode override for this token (if any)
         $tokenModes = $modesMap.$token
         foreach ($id in $ids) {
-            # ── String entry (subcommand convention) ───────────────────
+            # ── String entry (subcommand or remote convention) ─────────
             # e.g. "os:clean", "profile:base"  -- routes to scripts/<dispatcher>/run.ps1 <action> <args>
+            # e.g. "remote:clean-code"         -- streams a remote URL via 'irm | iex'
             $isStringEntry = ($id -is [string]) -and ($id -match '^([a-z]+):(.+)$')
             if ($isStringEntry) {
                 $dispatcher = $Matches[1]
                 $action     = $Matches[2]
+
+                $isRemoteEntry = $dispatcher -eq "remote"
+                if ($isRemoteEntry) {
+                    $remoteEntry = $null
+                    $hasRemoteMap = $null -ne $remoteMap
+                    if ($hasRemoteMap) {
+                        $remoteEntry = $remoteMap.$action
+                    }
+                    $isRemoteMissing = $null -eq $remoteEntry -or [string]::IsNullOrWhiteSpace($remoteEntry.url)
+                    if ($isRemoteMissing) {
+                        Write-Host "  [ FAIL ] " -ForegroundColor Red -NoNewline
+                        Write-Host "Remote keyword '$token' resolves to 'remote:$action' but no URL is mapped in $keywordsFile (missing 'remote.$action.url')."
+                        $hasError = $true
+                        continue
+                    }
+                    $entries.Add(@{ Kind = "remote"; Key = $action; Url = $remoteEntry.url; Label = $remoteEntry.label; Token = $token })
+                    continue
+                }
+
                 $entries.Add(@{ Kind = "subcommand"; Dispatcher = $dispatcher; Action = $action; Token = $token })
                 continue
             }
@@ -799,12 +820,13 @@ function Resolve-InstallKeywords {
         return $null
     }
 
-    # Sort: subcommands keep their original order at the END (run after script installs).
+    # Sort: subcommands + remote streams keep their original order at the END (run after script installs).
     # Script entries are sorted by ID. We split, sort scripts, then concat.
     $scriptEntries     = @($entries | Where-Object { $_.Kind -eq "script" -or $null -eq $_.Kind })
     $subcommandEntries = @($entries | Where-Object { $_.Kind -eq "subcommand" })
+    $remoteEntries     = @($entries | Where-Object { $_.Kind -eq "remote" })
     $sortedScripts     = $scriptEntries | Sort-Object { [int]$_.Id }
-    $sorted            = @($sortedScripts) + @($subcommandEntries)
+    $sorted            = @($sortedScripts) + @($subcommandEntries) + @($remoteEntries)
     return $sorted
 }
 
@@ -1821,8 +1843,11 @@ if ($hasInstallKeywords) {
     $totalSteps = @($resolvedEntries).Count
     $idList = ($resolvedEntries | ForEach-Object {
         $isSubcommand = $_.Kind -eq "subcommand"
+        $isRemote     = $_.Kind -eq "remote"
         if ($isSubcommand) {
             "$($_.Dispatcher):$($_.Action)"
+        } elseif ($isRemote) {
+            "remote:$($_.Key)"
         } else {
             $label = "$($_.Id)"
             $hasMode = -not [string]::IsNullOrWhiteSpace($_.Mode)
@@ -1874,6 +1899,59 @@ if ($hasInstallKeywords) {
             & $dispatcherScript @actionParts
             $code = $LASTEXITCODE
             if ($code -eq 0 -or $null -eq $code) { $successCount++ } else { $failCount++ }
+            Refresh-EnvPath
+            continue
+        }
+
+        $isRemote = $entry.Kind -eq "remote"
+        if ($isRemote) {
+            # Stream a remote PowerShell installer via 'Invoke-RestMethod | Invoke-Expression'
+            $url   = $entry.Url
+            $label = $entry.Label
+            $hasLabel = -not [string]::IsNullOrWhiteSpace($label)
+            $displayLabel = if ($hasLabel) { $label } else { $entry.Key }
+
+            Write-Host ""
+            Write-Host "  ----- Remote: $($entry.Key) -----" -ForegroundColor Cyan
+            Write-Host "  $displayLabel" -ForegroundColor DarkGray
+            Write-Host "  Source: $url" -ForegroundColor DarkGray
+            Write-Host "  Command: irm $url | iex" -ForegroundColor DarkGray
+            Write-Host ""
+
+            $remoteFailed = $false
+            $remoteError  = $null
+            try {
+                $script = Invoke-RestMethod -Uri $url -UseBasicParsing -ErrorAction Stop
+                $isScriptEmpty = [string]::IsNullOrWhiteSpace($script)
+                if ($isScriptEmpty) {
+                    $remoteFailed = $true
+                    $remoteError  = "Remote URL returned an empty body"
+                } else {
+                    Invoke-Expression $script
+                    $code = $LASTEXITCODE
+                    if ($null -ne $code -and $code -ne 0) {
+                        $remoteFailed = $true
+                        $remoteError  = "Remote installer exited with code $code"
+                    }
+                }
+            } catch {
+                $remoteFailed = $true
+                $remoteError  = $_.Exception.Message
+            }
+
+            if ($remoteFailed) {
+                Write-Host ""
+                Write-Host "  [ FAIL ] " -ForegroundColor Red -NoNewline
+                Write-Host "Remote installer '$($entry.Key)' failed."
+                Write-Host "          URL    : $url" -ForegroundColor DarkGray
+                Write-Host "          Reason : $remoteError" -ForegroundColor DarkGray
+                $failCount++
+            } else {
+                Write-Host ""
+                Write-Host "  [  OK  ] " -ForegroundColor Green -NoNewline
+                Write-Host "Remote installer '$($entry.Key)' completed."
+                $successCount++
+            }
             Refresh-EnvPath
             continue
         }

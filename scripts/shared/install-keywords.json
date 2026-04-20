@@ -238,6 +238,11 @@
     "one-note":          [50],
     "lightshot":         [51],
     "screenshot-tool":   [51],
+    "clean-code":        ["remote:clean-code"],
+    "code-guide":        ["remote:clean-code"],
+    "cg":                ["remote:clean-code"],
+    "cc":                ["remote:clean-code"],
+    "coding-guidelines": ["remote:clean-code"],
     "os-clean":          ["os:clean"],
     "osclean":           ["os:clean"],
     "os-hib-off":        ["os:hib-off"],
@@ -338,5 +343,12 @@
     "conemu+settings":   { "48": "install+settings" },
     "conemu-settings":   { "48": "settings-only" },
     "install-conemu":    { "48": "install-only" }
+  },
+  "_remoteComment": "Maps remote:<key> entries to the URL streamed via 'irm <url> | iex'. Used by 'install clean-code' / 'install cg' / 'install cc' / 'install code-guide'.",
+  "remote": {
+    "clean-code": {
+      "url":   "https://raw.githubusercontent.com/alimtvnetwork/coding-guidelines-v15/main/install.ps1",
+      "label": "Coding Guidelines v15 (clean-code)"
+    }
   }
 }
