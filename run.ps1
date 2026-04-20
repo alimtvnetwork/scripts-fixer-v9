@@ -792,7 +792,12 @@ function Resolve-InstallKeywords {
                         $hasError = $true
                         continue
                     }
-                    $entries.Add(@{ Kind = "remote"; Key = $action; Url = $remoteEntry.url; Label = $remoteEntry.label; Token = $token })
+                    $remoteSha = $null
+                    if ($remoteEntry.PSObject.Properties['sha256']) {
+                        $rawSha = "$($remoteEntry.sha256)".Trim()
+                        if (-not [string]::IsNullOrWhiteSpace($rawSha)) { $remoteSha = $rawSha.ToLowerInvariant() }
+                    }
+                    $entries.Add(@{ Kind = "remote"; Key = $action; Url = $remoteEntry.url; Label = $remoteEntry.label; Sha256 = $remoteSha; Token = $token })
                     continue
                 }
 
