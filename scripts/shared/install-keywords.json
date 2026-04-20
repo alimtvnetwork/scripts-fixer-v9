@@ -243,6 +243,16 @@
     "cg":                ["remote:clean-code"],
     "cc":                ["remote:clean-code"],
     "coding-guidelines": ["remote:clean-code"],
+    "starship":          ["remote:starship"],
+    "starship-prompt":   ["remote:starship"],
+    "ss":                ["remote:starship"],
+    "oh-my-posh":        ["remote:oh-my-posh"],
+    "ohmyposh":          ["remote:oh-my-posh"],
+    "omp":               ["remote:oh-my-posh"],
+    "posh":              ["remote:oh-my-posh"],
+    "scoop":             ["remote:scoop"],
+    "scoop-installer":   ["remote:scoop"],
+    "sc":                ["remote:scoop"],
     "os-clean":          ["os:clean"],
     "osclean":           ["os:clean"],
     "os-hib-off":        ["os:hib-off"],
@@ -344,11 +354,23 @@
     "conemu-settings":   { "48": "settings-only" },
     "install-conemu":    { "48": "install-only" }
   },
-  "_remoteComment": "Maps remote:<key> entries to the URL streamed via 'irm <url> | iex'. Used by 'install clean-code' / 'install cg' / 'install cc' / 'install code-guide'.",
+  "_remoteComment": "Maps remote:<key> entries to the URL streamed via 'irm <url> | iex'. Used by 'install clean-code' / 'install starship' / 'install oh-my-posh' / 'install scoop' etc.",
   "remote": {
     "clean-code": {
       "url":   "https://raw.githubusercontent.com/alimtvnetwork/coding-guidelines-v15/main/install.ps1",
       "label": "Coding Guidelines v15 (clean-code)"
+    },
+    "starship": {
+      "url":   "https://starship.rs/install.ps1",
+      "label": "Starship cross-shell prompt"
+    },
+    "oh-my-posh": {
+      "url":   "https://ohmyposh.dev/install.ps1",
+      "label": "Oh My Posh prompt theming engine"
+    },
+    "scoop": {
+      "url":   "https://get.scoop.sh",
+      "label": "Scoop -- command-line installer for Windows"
     }
   }
 }

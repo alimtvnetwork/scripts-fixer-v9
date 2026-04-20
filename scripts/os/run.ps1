@@ -73,6 +73,10 @@ $script:CleanCatalog = @(
     @{ B = "E"; Cat = "teams";               Desc = "Teams cache Classic+New (auth + chat SAFE)" },
     @{ B = "E"; Cat = "onedrive-cache";      Desc = "OneDrive client cache (synced files SAFE)" },
     @{ B = "F"; Cat = "vscode-cache";        Desc = "VS Code cache + logs (workspaces SAFE)" },
+    @{ B = "F"; Cat = "vscode-extensions-cache"; Desc = "VS Code per-extension cache+logs (extensions SAFE)" },
+    @{ B = "F"; Cat = "jetbrains-cache";     Desc = "JetBrains IDE caches+logs (settings+projects SAFE)" },
+    @{ B = "F"; Cat = "android-studio-cache";Desc = "Android Studio caches + AVD snapshots (SDK SAFE)" },
+    @{ B = "F"; Cat = "gradle-cache";        Desc = "Gradle ~/.gradle caches + daemon (wrappers SAFE)" },
     @{ B = "F"; Cat = "npm-cache";           Desc = "npm cache clean --force" },
     @{ B = "F"; Cat = "pip-cache";           Desc = "pip cache purge" },
     @{ B = "F"; Cat = "docker-dangling";     Desc = "docker system prune -f" },
@@ -91,7 +95,7 @@ function Show-OsHelp {
     Write-Host ""
     Write-Host "  PRIMARY ACTIONS" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "    clean [flags]                                          Run all 40 cleanup categories" -ForegroundColor Green
+    Write-Host "    clean [flags]                                          Run all 44 cleanup categories" -ForegroundColor Green
     Write-Host "      --yes                Auto-consent destructive categories" -ForegroundColor DarkGray
     Write-Host "      --dry-run            Report only (no deletions, no consent file written)" -ForegroundColor DarkGray
     Write-Host "      --skip <a,b,c>       Skip listed categories" -ForegroundColor DarkGray

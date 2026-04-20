@@ -2,6 +2,83 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.45.0] -- 2026-04-20
+
+Consolidated batch: OS Clean **Phase 4** (4 new dev-cache categories), `logs` subcommand **filter siblings** (`--grep` / `--since` / `--errors` / `--case-sensitive`), and **3 new remote installers** (`starship`, `oh-my-posh`, `scoop`) wired through the `remote:` convention introduced in v0.44.0.
+
+### Added: OS Clean Phase 4 -- 4 dev-tool cache categories (44 total)
+
+All four are **non-destructive cache-only** -- settings, projects, source code, SDK packages, and credentials are NEVER touched. Each accepts `--dry-run` / `--yes` / `--days N` like every other category.
+
+| Category | Targets | What it KEEPS |
+|---|---|---|
+| `vscode-extensions-cache` | `%USERPROFILE%\.vscode\extensions\<ext>\(cache\|.cache\|logs\|.logs\|tmp)`, `%APPDATA%\Code\(CachedExtensions\|CachedExtensionVSIXs\|logs\exthost*)` | Extension code, settings.json, keybindings, snippets, workspace state |
+| `jetbrains-cache` | `%LOCALAPPDATA%\JetBrains\<Product><Ver>\(caches\|log\|tmp)` for IntelliJ/PyCharm/WebStorm/Rider/GoLand/CLion/PhpStorm/RubyMine/DataGrip + Toolbox cache | `config\` (settings, keymaps), project files. Indexes will rebuild on next IDE launch (intentional). |
+| `android-studio-cache` | `%LOCALAPPDATA%\Google\AndroidStudio*\(caches\|log\|tmp)`, JetBrains-flavoured AndroidStudio dirs, `~\.android\cache`, `~\.android\avd\*\snapshots\` | SDK packages under `%LOCALAPPDATA%\Android\Sdk`, `config.ini`, `userdata-qemu.img` (only AVD snapshots get nuked, the AVDs themselves stay) |
+| `gradle-cache` | `~\.gradle\(caches\|daemon\|.tmp\|native)`. Calls `gradle --stop` first when the CLI is on PATH and we're not in dry-run. | `gradle.properties`, `init.d\` scripts, the wrapper distribution itself, project-local `.gradle\` (left alone) |
+
+#### Catalog wiring
+
+- `scripts/os/run.ps1`: 4 entries added to `$script:CleanCatalog` under Bucket F. Help banner now reads "Run all **44** cleanup categories".
+- `scripts/os/helpers/clean.ps1`: catalog grew from 40 to 44; orchestrator synopsis bumped to `v0.45.0 -- 44 categories`.
+- Each helper sits next to the others in `scripts/os/helpers/clean-categories/`. The same `_sweep.ps1` primitives (`Invoke-PathSweep`, `New-CleanResult`, `Set-CleanResultStatus`) are reused -- zero duplication.
+- `clean-jetbrains-cache` explicitly **skips** AndroidStudio* directories so the work isn't double-done with `clean-android-studio-cache`. Toolbox + Shared are also skipped (settings, not cache).
+
+#### Subcommand surface
+
+```powershell
+.\run.ps1 os clean-vscode-extensions-cache --dry-run
+.\run.ps1 os clean-jetbrains-cache --dry-run
+.\run.ps1 os clean-android-studio-cache --dry-run
+.\run.ps1 os clean-gradle-cache --dry-run
+.\run.ps1 os clean --bucket F --dry-run        # all 9 dev-tool categories
+```
+
+### Added: `logs --grep` / `--since` / `--errors` / `--case-sensitive`
+
+The `logs` subcommand introduced in v0.43.2 now supports four filter flags that **all compose**. `--tail` still defaults to 20.
+
+#### Flags
+
+- `--grep <pattern>` -- filters events whose `.message` matches the regex. Case-**insensitive** by default (typical user intent). The regex is compiled **once up front** with `New-Object System.Text.RegularExpressions.Regex` -- a malformed pattern fails fast with the exact `.NET` message instead of throwing per-event.
+- `--case-sensitive` -- toggles `--grep` into case-sensitive mode (`RegexOptions.None`).
+- `--since <duration>` -- only events newer than the cutoff. Accepted suffixes: `s`/`sec`/`second(s)`, `m`/`min`/`minute(s)`, `h`/`hr`/`hour(s)`, `d`/`day(s)`, `w`/`wk`/`week(s)`. Examples: `30m`, `1h`, `2d`, `1w`. Invalid duration fails fast with a `[ FAIL ]` listing accepted formats.
+- `--errors` -- only `level=fail` / `level=warn` / `level=error`. **Also reads `.logs/*-error.json`** (which were skipped by default to avoid duplicates) so dedicated error logs are surfaced.
+
+All filters apply BEFORE the global tail. The `(default tail 20)` label only appears when `--tail` was NOT passed; otherwise the header reads e.g. `logs --tail 50 --errors --grep 'locked' --since 1h`.
+
+When zero events survive the filters, the empty-result banner echoes the active filter set so you can see what excluded everything (CODE RED visibility).
+
+#### Implementation notes
+
+- Three filters are independent flags but share one event collector loop -- no double-pass over `.logs/*.json`.
+- Per-event identity stamping (v0.43.1) is honored: when `--errors` reads from `errors[]` and `warnings[]` arrays, each entry's own `projectVersion` / `invokedFrom` / `scriptName` win over the file header.
+- Help block (`logs --help`) now lists every flag with one-line descriptions.
+
+### Added: 3 new remote installers (`starship`, `oh-my-posh`, `scoop`)
+
+Each gets a JSON entry under `remote.*` plus short and long aliases. All five (clean-code already wired in v0.44.0) use the same `irm <url> | iex` dispatch.
+
+| Aliases | URL | Label |
+|---|---|---|
+| `starship`, `starship-prompt`, `ss` | `https://starship.rs/install.ps1` | Starship cross-shell prompt |
+| `oh-my-posh`, `ohmyposh`, `omp`, `posh` | `https://ohmyposh.dev/install.ps1` | Oh My Posh prompt theming engine |
+| `scoop`, `scoop-installer`, `sc` | `https://get.scoop.sh` | Scoop -- command-line installer for Windows |
+
+```powershell
+.\run.ps1 install starship
+.\run.ps1 install omp
+.\run.ps1 install scoop
+.\run.ps1 install starship,omp,scoop      # chained -- runs in order
+```
+
+The dispatcher prints `Source: <url>` and `Command: irm <url> | iex` before executing so the literal one-liner is copy-pasteable for manual reruns. Failures (network down, 404, non-zero exit, empty body) are caught and reported with the URL + reason -- no stack traces.
+
+### Skipped (with reason)
+
+- **Unix `run.sh --version` mirror** -- not applicable: this project has no `run.sh`. `install.sh` already has its own `--version` mode (bootstrap version probe), and the local dispatcher is `run.ps1` only.
+- **Windows-runtime verifications for v0.43.1 (per-event identity) and v0.43.2 (`logs --tail`)** -- these need a real Windows shell with populated `.logs/*.json`. The new `--errors` flag gives you a one-command audit: any v0.43.1+ event written under the new identity rule will show up via `.\run.ps1 logs --errors` with its own `projectVersion`/`invokedFrom` per line. See "Manual Windows verification" in the testing suggestions below.
+
 ## [v0.44.0] -- 2026-04-20
 
 ### Added (`install clean-code` remote installer)
