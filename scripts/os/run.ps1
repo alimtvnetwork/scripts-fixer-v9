@@ -94,6 +94,8 @@ function Show-OsHelp {
     Write-Host "      --only <a,b,c>       Run only listed categories" -ForegroundColor DarkGray
     Write-Host "      --bucket <A..G>      Run only one bucket (e.g. D = browsers)" -ForegroundColor DarkGray
     Write-Host "      --days <N>           Age threshold for media subcommands (default 30)" -ForegroundColor DarkGray
+    Write-Host "      --consent-list       Print categories with recorded consent and exit" -ForegroundColor DarkGray
+    Write-Host "      --consent-reset      Wipe .resolved/os-clean-consent.json (prompts unless --yes)" -ForegroundColor DarkGray
     Write-Host ""
     Write-Host "    temp-clean [flags]                                     Temp dirs only (legacy helper)" -ForegroundColor Green
     Write-Host "    hib-off | hib-on                                       Disable/enable hibernation" -ForegroundColor Green
