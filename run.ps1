@@ -1843,8 +1843,11 @@ if ($hasInstallKeywords) {
     $totalSteps = @($resolvedEntries).Count
     $idList = ($resolvedEntries | ForEach-Object {
         $isSubcommand = $_.Kind -eq "subcommand"
+        $isRemote     = $_.Kind -eq "remote"
         if ($isSubcommand) {
             "$($_.Dispatcher):$($_.Action)"
+        } elseif ($isRemote) {
+            "remote:$($_.Key)"
         } else {
             $label = "$($_.Id)"
             $hasMode = -not [string]::IsNullOrWhiteSpace($_.Mode)
