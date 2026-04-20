@@ -82,6 +82,11 @@ $script:CleanCatalog = @(
     @{ B = "F"; Cat = "cargo-registry";      Desc = "Cargo registry cache + git checkouts (.cargo/bin SAFE)" },
     @{ B = "F"; Cat = "go-buildcache";       Desc = "Go build cache + module downloads (~/go/bin SAFE)" },
     @{ B = "F"; Cat = "maven-repo";          Desc = "Maven ~/.m2/repository + wrapper dists (settings SAFE)" },
+    @{ B = "F"; Cat = "conda-pkgs";          Desc = "Conda pkgs cache (anaconda3 + miniconda3 + .conda; envs SAFE)" },
+    @{ B = "F"; Cat = "poetry-cache";        Desc = "Poetry pkg + venv cache (pyproject + .venv SAFE)" },
+    @{ B = "F"; Cat = "pnpm-store";          Desc = "pnpm CAS store (.pnpm-store + LOCALAPPDATA pnpm; runtime SAFE)" },
+    @{ B = "F"; Cat = "deno-cache";          Desc = "Deno DENO_DIR (deps/gen/npm/registries; runtime SAFE)" },
+    @{ B = "F"; Cat = "rustup-toolchains";   Desc = "Stale rustup toolchains >--days N (active + pinned SAFE)" },
     @{ B = "F"; Cat = "npm-cache";           Desc = "npm cache clean --force" },
     @{ B = "F"; Cat = "pip-cache";           Desc = "pip cache purge" },
     @{ B = "F"; Cat = "docker-dangling";     Desc = "docker system prune -f" },
@@ -100,7 +105,7 @@ function Show-OsHelp {
     Write-Host ""
     Write-Host "  PRIMARY ACTIONS" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "    clean [flags]                                          Run all 49 cleanup categories" -ForegroundColor Green
+    Write-Host "    clean [flags]                                          Run all 54 cleanup categories" -ForegroundColor Green
     Write-Host "      --yes                Auto-consent destructive categories" -ForegroundColor DarkGray
     Write-Host "      --dry-run            Report only (no deletions, no consent file written)" -ForegroundColor DarkGray
     Write-Host "      --skip <a,b,c>       Skip listed categories" -ForegroundColor DarkGray
