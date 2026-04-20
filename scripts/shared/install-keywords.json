@@ -354,7 +354,7 @@
     "conemu-settings":   { "48": "settings-only" },
     "install-conemu":    { "48": "install-only" }
   },
-  "_remoteComment": "Maps remote:<key> entries to the URL streamed via 'irm <url> | iex'. Used by 'install clean-code' / 'install starship' / 'install oh-my-posh' / 'install scoop' etc.",
+  "_remoteComment": "Maps remote:<key> entries to the URL streamed via 'irm <url> | iex'. Used by 'install clean-code' / 'install starship' / 'install oh-my-posh' / 'install scoop' etc. Each entry MAY include an optional 'sha256': '<lowercase-hex>' field; when present, run.ps1 hashes the downloaded body BEFORE Invoke-Expression and refuses to execute on mismatch (CODE RED integrity guard, v0.45.2+).",
   "remote": {
     "clean-code": {
       "url":   "https://raw.githubusercontent.com/alimtvnetwork/coding-guidelines-v15/main/install.ps1",
