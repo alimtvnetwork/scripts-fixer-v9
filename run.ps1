@@ -746,12 +746,32 @@ function Resolve-InstallKeywords {
         # Determine mode override for this token (if any)
         $tokenModes = $modesMap.$token
         foreach ($id in $ids) {
-            # ── String entry (subcommand convention) ───────────────────
+            # ── String entry (subcommand or remote convention) ─────────
             # e.g. "os:clean", "profile:base"  -- routes to scripts/<dispatcher>/run.ps1 <action> <args>
+            # e.g. "remote:clean-code"         -- streams a remote URL via 'irm | iex'
             $isStringEntry = ($id -is [string]) -and ($id -match '^([a-z]+):(.+)$')
             if ($isStringEntry) {
                 $dispatcher = $Matches[1]
                 $action     = $Matches[2]
+
+                $isRemoteEntry = $dispatcher -eq "remote"
+                if ($isRemoteEntry) {
+                    $remoteEntry = $null
+                    $hasRemoteMap = $null -ne $remoteMap
+                    if ($hasRemoteMap) {
+                        $remoteEntry = $remoteMap.$action
+                    }
+                    $isRemoteMissing = $null -eq $remoteEntry -or [string]::IsNullOrWhiteSpace($remoteEntry.url)
+                    if ($isRemoteMissing) {
+                        Write-Host "  [ FAIL ] " -ForegroundColor Red -NoNewline
+                        Write-Host "Remote keyword '$token' resolves to 'remote:$action' but no URL is mapped in $keywordsFile (missing 'remote.$action.url')."
+                        $hasError = $true
+                        continue
+                    }
+                    $entries.Add(@{ Kind = "remote"; Key = $action; Url = $remoteEntry.url; Label = $remoteEntry.label; Token = $token })
+                    continue
+                }
+
                 $entries.Add(@{ Kind = "subcommand"; Dispatcher = $dispatcher; Action = $action; Token = $token })
                 continue
             }
