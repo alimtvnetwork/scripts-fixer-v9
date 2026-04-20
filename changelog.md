@@ -2,6 +2,40 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.43.2] -- 2026-04-20
+
+### Added (`logs --tail` subcommand)
+
+New root subcommand `.\run.ps1 logs --tail [N]` that prints the last N events (default 20) from every `.logs/*.json` file, grouped by `invokedFrom`, with `projectVersion` shown per group. Exits before any git pull or script dispatch -- safe in restricted shells.
+
+#### Behaviour
+
+- **Source**: scans `.logs/*.json` (skips `*-error.json` -- those events are duplicates already present in the main file).
+- **Sort**: every event is parsed for `timestamp`, normalised to a sortable `[datetime]`, and the global tail is taken across ALL files (not per-file). This ensures the actual chronological tail is shown even when multiple scripts ran in parallel.
+- **Grouping**: after tailing, events are grouped by `invokedFrom` and groups are ordered by their most-recent event timestamp (most recent group last).
+- **Per-group header**: shows the invoking script path + the `projectVersion` of the latest event in the group. If the group spans multiple versions (e.g. logs from before and after a bump), the header reads `v<latest> (mixed: v0.43.0, v0.43.1)` so version drift is visible.
+- **Per-event line**: `<timestamp 19-char>  [<level>]  <message>`, color-coded by level (ok=Green, fail=Red, warn=Yellow, skip=DarkGray, info=Cyan).
+- **Backward compat**: events written before v0.43.1 (no per-event identity) fall back to the file-level `projectVersion` / `invokedFrom` / `scriptName` from the JSON header. Files older than v0.42.2 (no header identity either) fall back to `"unknown"` and the log filename.
+
+#### Flags
+
+- `--tail [N]` -- explicit tail length. `N` must parse as a positive int; otherwise default 20 is used.
+- `--help` / `-h` / `help` -- prints usage and exits 0.
+- Bare `.\run.ps1 logs` (no `--tail`) is treated as `--tail 20` and labelled `(default tail 20)`.
+
+#### Implementation
+
+- Added a `logs` short-circuit in `run.ps1` immediately after the `--version` short-circuit. Reads `Install` (the catch-all `ValueFromRemainingArguments`) for flag parsing.
+- Wraps each `ConvertFrom-Json` in `try/catch`; corrupt or partial files emit a `[ WARN ]` line with the exact path + parse error reason (CODE RED file-path discipline) and processing continues.
+- Missing `.logs/` directory or empty file set exits 0 with a friendly `[ INFO ]` message -- never throws.
+
+### Bumped
+
+- `scripts/version.json`: 0.43.1 -> 0.43.2.
+
+> Note: requested as v0.43.0, but on-disk state is already v0.43.1 (per-event identity stamping landed in v0.43.1). Increment lands as **v0.43.2** (smallest forward step, semver forward-only).
+
+
 ## [v0.43.1] -- 2026-04-20
 
 ### Added (per-event identity stamping)

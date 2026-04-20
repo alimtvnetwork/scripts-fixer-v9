@@ -678,7 +678,8 @@ function Show-KeywordTable {
     Write-Host ""
     Write-Host "  Usage: " -NoNewline -ForegroundColor Yellow; Write-Host ".\run.ps1 install <keyword>[,<keyword>,...]"
     Write-Host ""
-}
+    }
+
 
 
 
@@ -1428,6 +1429,148 @@ if ($hasCommand) {
         exit 0
     }
 
+
+    # ── logs --tail [N] short-circuit ─────────────────────────────────
+    # Print the last N events (default 20) across all .logs/*.json files,
+    # grouped by invokedFrom, with the projectVersion column visible.
+    # Exits before any git pull / dispatch -- safe in restricted shells.
+    $isLogsCommand = $normalizedCommand -eq "logs"
+    if ($isLogsCommand) {
+        $logsArgs = @($Install)
+        $tailN = 20
+        $isTailRequested = $false
+        for ($i = 0; $i -lt $logsArgs.Count; $i++) {
+            $a = "$($logsArgs[$i])".Trim()
+            $isTailFlag = $a -in @("--tail", "-tail", "tail")
+            if ($isTailFlag) {
+                $isTailRequested = $true
+                $hasInlineN = ($i + 1) -lt $logsArgs.Count
+                if ($hasInlineN) {
+                    $parsed = 0
+                    if ([int]::TryParse("$($logsArgs[$i + 1])", [ref]$parsed) -and $parsed -gt 0) {
+                        $tailN = $parsed
+                    }
+                }
+            }
+            $isHelp = $a -in @("--help", "-h", "help")
+            if ($isHelp) {
+                Write-Host ""
+                Write-Host "  Usage: .\run.ps1 logs --tail [N]" -ForegroundColor Cyan
+                Write-Host "    Prints the last N events from .logs/*.json (default 20)," -ForegroundColor DarkGray
+                Write-Host "    grouped by invokedFrom, showing projectVersion per event." -ForegroundColor DarkGray
+                Write-Host ""
+                exit 0
+            }
+        }
+
+        $logsDir = Join-Path $RootDir ".logs"
+        $isLogsDirMissing = -not (Test-Path -LiteralPath $logsDir)
+        if ($isLogsDirMissing) {
+            Write-Host ""
+            Write-Host "  [ INFO ] " -ForegroundColor Cyan -NoNewline
+            Write-Host "No .logs/ directory found at: $logsDir"
+            Write-Host "  Run any script first to generate logs." -ForegroundColor DarkGray
+            Write-Host ""
+            exit 0
+        }
+
+        # Collect events from every *.json (skip *-error.json -- those events
+        # are duplicates of entries already in the main file).
+        $allEvents = New-Object System.Collections.ArrayList
+        $logFiles = Get-ChildItem -LiteralPath $logsDir -Filter "*.json" -File -ErrorAction SilentlyContinue |
+                    Where-Object { $_.Name -notlike "*-error.json" }
+        $hasNoLogFiles = $logFiles.Count -eq 0
+        if ($hasNoLogFiles) {
+            Write-Host ""
+            Write-Host "  [ INFO ] " -ForegroundColor Cyan -NoNewline
+            Write-Host "No .logs/*.json files found in: $logsDir"
+            Write-Host ""
+            exit 0
+        }
+
+        foreach ($lf in $logFiles) {
+            try {
+                $payload = Get-Content -LiteralPath $lf.FullName -Raw | ConvertFrom-Json
+            } catch {
+                Write-Host "  [ WARN ] " -ForegroundColor Yellow -NoNewline
+                Write-Host "Could not parse log file: $($lf.FullName) -- Reason: $($_.Exception.Message)"
+                continue
+            }
+            $hasEvents = $payload.PSObject.Properties['events'] -and $payload.events
+            if (-not $hasEvents) { continue }
+            # Per-file fallbacks for events emitted before per-event identity (pre-v0.43.1)
+            $fileVer    = if ($payload.PSObject.Properties['projectVersion']) { "$($payload.projectVersion)" } else { "unknown" }
+            $fileInvoke = if ($payload.PSObject.Properties['invokedFrom'])    { "$($payload.invokedFrom)"    } else { "unknown" }
+            $fileScript = if ($payload.PSObject.Properties['scriptName'])     { "$($payload.scriptName)"     } else { ($lf.BaseName) }
+            foreach ($ev in $payload.events) {
+                $ts = if ($ev.PSObject.Properties['timestamp']) { "$($ev.timestamp)" } else { "" }
+                $lv = if ($ev.PSObject.Properties['level'])     { "$($ev.level)"     } else { "info" }
+                $ms = if ($ev.PSObject.Properties['message'])   { "$($ev.message)"   } else { "" }
+                $pv = if ($ev.PSObject.Properties['projectVersion']) { "$($ev.projectVersion)" } else { $fileVer }
+                $iv = if ($ev.PSObject.Properties['invokedFrom'])    { "$($ev.invokedFrom)"    } else { $fileInvoke }
+                $sn = if ($ev.PSObject.Properties['scriptName'])     { "$($ev.scriptName)"     } else { $fileScript }
+                $sortKey = $lf.LastWriteTime
+                $parsedDate = [datetime]::MinValue
+                if ([datetime]::TryParse($ts, [ref]$parsedDate)) { $sortKey = $parsedDate }
+                $allEvents.Add([pscustomobject]@{
+                    SortKey        = $sortKey
+                    Timestamp      = $ts
+                    Level          = $lv
+                    Message        = $ms
+                    ProjectVersion = $pv
+                    InvokedFrom    = $iv
+                    ScriptName     = $sn
+                    SourceFile     = $lf.Name
+                }) | Out-Null
+            }
+        }
+
+        $totalEvents = $allEvents.Count
+        if ($totalEvents -eq 0) {
+            Write-Host ""
+            Write-Host "  [ INFO ] " -ForegroundColor Cyan -NoNewline
+            Write-Host "Found $($logFiles.Count) log file(s) but zero events inside events[]."
+            Write-Host ""
+            exit 0
+        }
+
+        $tail = $allEvents | Sort-Object SortKey | Select-Object -Last $tailN
+        $groups = $tail | Group-Object InvokedFrom | Sort-Object { ($_.Group | Measure-Object SortKey -Maximum).Maximum }
+
+        $headerLabel = if ($isTailRequested) { "logs --tail $tailN" } else { "logs (default tail $tailN)" }
+        Write-Host ""
+        Write-Host "  $headerLabel  --  showing $($tail.Count) of $totalEvents event(s) across $($logFiles.Count) file(s)" -ForegroundColor Magenta
+        Write-Host "  ===============================================================" -ForegroundColor DarkGray
+
+        $levelColors = @{ ok = "Green"; fail = "Red"; warn = "Yellow"; skip = "DarkGray"; info = "Cyan" }
+        foreach ($g in $groups) {
+            $groupVersions = $g.Group | Select-Object -ExpandProperty ProjectVersion -Unique
+            $primaryVersion = ($g.Group | Sort-Object SortKey | Select-Object -Last 1).ProjectVersion
+            $versionLabel = if ($groupVersions.Count -gt 1) {
+                "v$primaryVersion (mixed: $($groupVersions -join ', '))"
+            } else {
+                "v$primaryVersion"
+            }
+            Write-Host ""
+            Write-Host "  invokedFrom: $($g.Name)  [$versionLabel]  --  $($g.Group.Count) event(s)" -ForegroundColor Yellow
+            $sorted = $g.Group | Sort-Object SortKey
+            foreach ($e in $sorted) {
+                $color = if ($levelColors.ContainsKey($e.Level)) { $levelColors[$e.Level] } else { "Gray" }
+                $shortTs = $e.Timestamp
+                if ($shortTs.Length -ge 19) { $shortTs = $shortTs.Substring(0, 19) }
+                $line = "    {0}  [{1,-4}]  {2}" -f $shortTs, $e.Level, $e.Message
+                Write-Host $line -ForegroundColor $color
+            }
+        }
+
+        Write-Host ""
+        Write-Host "  Source files scanned:" -ForegroundColor DarkGray
+        foreach ($lf in ($logFiles | Sort-Object Name)) {
+            Write-Host "    - $($lf.Name)" -ForegroundColor DarkGray
+        }
+        Write-Host ""
+        exit 0
+    }
 
     $isBareInstallCommand = $normalizedCommand -eq "install"
     $isBareUpdateCommand  = $normalizedCommand -eq "update" -or $normalizedCommand -eq "choco-update" -or $normalizedCommand -eq "upgrade"
