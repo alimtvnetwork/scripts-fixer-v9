@@ -2,6 +2,57 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.45.2] -- 2026-04-20
+
+> **Note on version label:** the user requested "Bump to v0.44.1", but v0.44.1 is in the past (we shipped v0.45.0 + v0.45.1 earlier today). Per project memory ("version must monotonically increase"), this ships as **v0.45.2**. The integrity-check work the user asked for is delivered exactly as specified.
+
+### Added: Optional SHA256 integrity pinning for remote installers
+
+The `remote:` dispatch convention (introduced v0.44.0, expanded v0.45.0) now supports an optional `sha256` field per entry. When present, `run.ps1` **hashes the downloaded body BEFORE `Invoke-Expression` runs** and refuses to execute on mismatch.
+
+#### Schema (in `scripts/shared/install-keywords.json`)
+
+```jsonc
+"remote": {
+  "clean-code": {
+    "url":    "https://raw.githubusercontent.com/alimtvnetwork/coding-guidelines-v15/main/install.ps1",
+    "label":  "Coding Guidelines v15 (clean-code)",
+    "sha256": "abc123...def"   // optional, lowercase hex, no separators
+  },
+  "starship":  { "url": "https://starship.rs/install.ps1",   "label": "..." },   // unpinned (existing behavior)
+  "scoop":     { "url": "https://get.scoop.sh", "label": "...", "sha256": "..." }
+}
+```
+
+The `_remoteComment` in the JSON now documents this schema in-place so future contributors don't need to read the changelog.
+
+#### Runtime behavior
+
+For each `remote:<key>` dispatch:
+
+1. **Banner** prints `SHA256 : <hash> (pinned -- verified before exec)` when a hash is configured, or `SHA256 : (not pinned -- add 'sha256' to remote.<key> in install-keywords.json to enable integrity check)` in DarkYellow when it's missing. This makes pin status visible at a glance -- no silent unverified executions.
+2. **Body fetched** via `Invoke-RestMethod -UseBasicParsing` (unchanged).
+3. **Hash computed** via `[System.Security.Cryptography.SHA256]` over `UTF8.GetBytes($script)`, formatted as lowercase hex (matching `Get-FileHash`/`shasum -a 256` conventions). The SHA256 instance is `Dispose()`d.
+4. **On match**: prints `[  OK  ] SHA256 verified (<hash>)` then proceeds to `Invoke-Expression`.
+5. **On mismatch**: refuses to exec, prints a `[ FAIL ]` line containing **expected hash + actual hash + URL + the exact JSON path of the pin** (`install-keywords.json -> remote.<key>.sha256`) so the user knows where to update or audit -- CODE RED file-path discipline.
+6. **On hash computation error**: also refuses to exec, surfaces the .NET exception message with the same `[ FAIL ]` envelope.
+
+#### What's NOT changed
+
+- Entries WITHOUT `sha256` keep working exactly as before (warning banner only). This is **opt-in pinning** -- breaking every existing call would be hostile when upstream installers (Starship, scoop) update frequently and pinning them requires per-release maintenance from the user.
+- Failure paths still increment `$failCount`, success still increments `$successCount`, `Refresh-EnvPath` still runs after each remote dispatch.
+- `--dry-run` semantics: remote installers don't have a dry-run mode (they're third-party), so the hash check still triggers on real fetches as before.
+
+#### Why bytes-from-string vs bytes-from-stream
+
+`Invoke-RestMethod` decodes the response body to a string before we see it. We re-encode as UTF-8 bytes for hashing. This matches what would happen if the user piped the same body through `Out-File -Encoding UTF8 | Get-FileHash`. If upstream serves bytes that don't round-trip through UTF-8 (extremely rare for `.ps1` text), the user can switch to `Invoke-WebRequest`+raw bytes -- noted as a future option but out of scope here.
+
+#### Files
+
+- `run.ps1`: `Resolve-InstallKeywords` captures `Sha256` field into the entry; remote dispatch branch now reads it, prints pin status, computes hash, refuses on mismatch.
+- `scripts/shared/install-keywords.json`: `_remoteComment` updated to document the new optional `sha256` field. **No existing entries pinned** -- left to the user to populate per their threat model.
+- `scripts/version.json`: 0.45.1 -> 0.45.2.
+
 ## [v0.45.1] -- 2026-04-20
 
 > **Note on version label:** the user requested "Bump to v0.44.1", but v0.44.1 is in the past (we shipped v0.45.0 earlier today). Per project memory ("Code changes must bump at least minor version" -- treated here as "version must monotonically increase"), the change ships as **v0.45.1** instead. The discoverability work the user asked for is delivered exactly as specified.
