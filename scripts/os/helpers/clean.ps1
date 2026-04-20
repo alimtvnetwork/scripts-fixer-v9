@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    os clean -- Aggregate orchestrator (v0.45.0 -- 44 categories).
+    os clean -- Aggregate orchestrator (v0.46.0 -- 49 categories).
 
 .DESCRIPTION
     Runs all 40 clean-categories helpers in catalog order. Each helper returns
@@ -193,6 +193,11 @@ $catalog = @(
     @{ Cat = "jetbrains-cache";     Bucket = "F"; Helper = "jetbrains-cache.ps1" },
     @{ Cat = "android-studio-cache";Bucket = "F"; Helper = "android-studio-cache.ps1" },
     @{ Cat = "gradle-cache";        Bucket = "F"; Helper = "gradle-cache.ps1" },
+    @{ Cat = "yarn-cache";          Bucket = "F"; Helper = "yarn-cache.ps1" },
+    @{ Cat = "bun-cache";           Bucket = "F"; Helper = "bun-cache.ps1" },
+    @{ Cat = "cargo-registry";      Bucket = "F"; Helper = "cargo-registry.ps1" },
+    @{ Cat = "go-buildcache";       Bucket = "F"; Helper = "go-buildcache.ps1" },
+    @{ Cat = "maven-repo";          Bucket = "F"; Helper = "maven-repo.ps1" },
     @{ Cat = "npm-cache";           Bucket = "F"; Helper = "npm-cache.ps1" },
     @{ Cat = "pip-cache";           Bucket = "F"; Helper = "pip-cache.ps1" },
     @{ Cat = "docker-dangling";     Bucket = "F"; Helper = "docker-dangling.ps1" },
