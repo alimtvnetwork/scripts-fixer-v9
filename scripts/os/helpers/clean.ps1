@@ -49,6 +49,87 @@ $dryRun = Test-DryRunSwitch -Argv $Argv
 $autoYes = Test-YesSwitch -Argv $Argv
 $days = Get-DaysArg -Argv $Argv -Default 30
 
+# ---------- Consent management flags (handled before any work) ----------
+$consentReset = $false
+$consentList  = $false
+foreach ($a in $Argv) {
+    $t = "$a".Trim().ToLower()
+    if ($t -in @("--consent-reset", "-consent-reset")) { $consentReset = $true }
+    if ($t -in @("--consent-list",  "-consent-list"))  { $consentList  = $true }
+}
+
+if ($consentList) {
+    $consent = Read-CleanConsent
+    Write-Host ""
+    Write-Host "  OS Clean -- Consent List" -ForegroundColor Cyan
+    Write-Host "  ========================" -ForegroundColor DarkGray
+    $consentPath = Get-ConsentFilePath
+    Write-Host ("    File:    {0}" -f $consentPath) -ForegroundColor DarkGray
+    Write-Host ("    Machine: {0}" -f $consent.machineName) -ForegroundColor DarkGray
+    Write-Host ("    Saved:   {0}" -f ($(if ($consent.consentedAt) { $consent.consentedAt } else { "(never)" }))) -ForegroundColor DarkGray
+    Write-Host ""
+    if (-not $consent.consentedFor -or $consent.consentedFor.Count -eq 0) {
+        Write-Host "    [ INFO ] " -ForegroundColor Cyan -NoNewline
+        Write-Host "No categories have consent recorded."
+    } else {
+        Write-Host "    Consented categories ($($consent.consentedFor.Count)):" -ForegroundColor Yellow
+        foreach ($c in ($consent.consentedFor | Sort-Object)) {
+            Write-Host ("      - {0}" -f $c) -ForegroundColor Green
+        }
+    }
+    Write-Host ""
+    Save-LogFile -Status "ok"
+    exit 0
+}
+
+if ($consentReset) {
+    $consentPath = Get-ConsentFilePath
+    Write-Host ""
+    Write-Host "  OS Clean -- Consent Reset" -ForegroundColor Cyan
+    Write-Host "  =========================" -ForegroundColor DarkGray
+    if (-not (Test-Path -LiteralPath $consentPath)) {
+        Write-Host "    [ INFO ] " -ForegroundColor Cyan -NoNewline
+        Write-Host "No consent file found at $consentPath -- nothing to reset."
+        Save-LogFile -Status "ok"
+        exit 0
+    }
+    if ($dryRun) {
+        Write-Host "    [ DRY-RUN ] " -ForegroundColor Cyan -NoNewline
+        Write-Host "Would delete: $consentPath"
+        Save-LogFile -Status "ok"
+        exit 0
+    }
+    if (-not $autoYes) {
+        $existing = Read-CleanConsent
+        $count = if ($existing.consentedFor) { $existing.consentedFor.Count } else { 0 }
+        Write-Host "    This will wipe consent for $count categor$(if ($count -eq 1) {'y'} else {'ies'})." -ForegroundColor Yellow
+        Write-Host "    File: $consentPath" -ForegroundColor DarkGray
+        Write-Host "    Continue? [y/N]: " -ForegroundColor Yellow -NoNewline
+        $reply = Read-Host
+        if ($reply -notmatch '^(y|yes)$') {
+            Write-Host "    [ SKIP ] " -ForegroundColor DarkGray -NoNewline
+            Write-Host "Cancelled."
+            Save-LogFile -Status "skip"
+            exit 0
+        }
+    }
+    try {
+        Remove-Item -LiteralPath $consentPath -Force -ErrorAction Stop
+        Write-Host "    [ OK ] " -ForegroundColor Green -NoNewline
+        Write-Host "Deleted $consentPath"
+        Write-Log "Consent file wiped: $consentPath" -Level "ok"
+        Save-LogFile -Status "ok"
+        exit 0
+    } catch {
+        Write-Host "    [ FAIL ] " -ForegroundColor Red -NoNewline
+        Write-Host "Could not delete consent file at ${consentPath}: $($_.Exception.Message)"
+        Write-Log "Failed to delete consent file at ${consentPath}: $($_.Exception.Message)" -Level "fail"
+        Save-LogFile -Status "fail"
+        exit 1
+    }
+}
+
+
 function Get-MultiArg {
     param([string[]]$Argv, [string]$Name)
     if ($null -eq $Argv) { return @() }
