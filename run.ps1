@@ -662,6 +662,17 @@ function Show-KeywordTable {
     Write-Host "    $("container-dev".PadRight($kwCol))$("Docker + Kubernetes".PadRight($descCol))45, 46"
     Write-Host "    $("systems-dev".PadRight($kwCol))$("C++ + Rust".PadRight($descCol))09, 44"
     Write-Host ""
+    Write-Host "    Remote installers (irm | iex)" -ForegroundColor Magenta
+    Write-Host "    $("clean-code, cg, cc".PadRight($kwCol))$("Coding Guidelines v15".PadRight($descCol))remote"
+    Write-Host "    $("code-guide".PadRight($kwCol))$("Coding Guidelines v15 (alias)".PadRight($descCol))remote"
+    Write-Host "    $("coding-guidelines".PadRight($kwCol))$("Coding Guidelines v15 (alias)".PadRight($descCol))remote"
+    Write-Host "    $("starship, ss".PadRight($kwCol))$("Starship cross-shell prompt".PadRight($descCol))remote"
+    Write-Host "    $("starship-prompt".PadRight($kwCol))$("Starship (alias)".PadRight($descCol))remote"
+    Write-Host "    $("oh-my-posh, omp, posh".PadRight($kwCol))$("Oh My Posh prompt theme".PadRight($descCol))remote"
+    Write-Host "    $("ohmyposh".PadRight($kwCol))$("Oh My Posh (alias)".PadRight($descCol))remote"
+    Write-Host "    $("scoop, sc".PadRight($kwCol))$("Scoop CLI installer".PadRight($descCol))remote"
+    Write-Host "    $("scoop-installer".PadRight($kwCol))$("Scoop (alias)".PadRight($descCol))remote"
+    Write-Host ""
 
     Write-Host "  Combo Shortcuts:" -ForegroundColor Yellow
     Write-Host ""
