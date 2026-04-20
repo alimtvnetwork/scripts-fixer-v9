@@ -343,5 +343,12 @@
     "conemu+settings":   { "48": "install+settings" },
     "conemu-settings":   { "48": "settings-only" },
     "install-conemu":    { "48": "install-only" }
+  },
+  "_remoteComment": "Maps remote:<key> entries to the URL streamed via 'irm <url> | iex'. Used by 'install clean-code' / 'install cg' / 'install cc' / 'install code-guide'.",
+  "remote": {
+    "clean-code": {
+      "url":   "https://raw.githubusercontent.com/alimtvnetwork/coding-guidelines-v15/main/install.ps1",
+      "label": "Coding Guidelines v15 (clean-code)"
+    }
   }
 }
