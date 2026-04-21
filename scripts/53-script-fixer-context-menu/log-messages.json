@@ -1,0 +1,57 @@
+{
+  "scriptName": "Script Fixer Context Menu",
+  "description": "Opt-in cascading right-click menu that lists every script in registry.json, grouped by category, version embedded in the title.",
+  "messages": {
+    "scriptDisabled": "Script Fixer context menu is disabled in config (set 'enabled': true to install).",
+    "notAdmin": "This script must be run as Administrator.",
+    "checkingAdmin": "Checking Administrator privileges...",
+    "currentUser": "Current user: {name}",
+    "isAdministrator": "Is Administrator: {value}",
+    "loadingVersion": "Loading project version from {path}...",
+    "versionLoaded": "Project version: v{version}",
+    "versionMissing": "scripts/version.json not found at {path} -- using 'unknown' in title.",
+    "topLevelLabel": "Top-level menu label: '{label}'",
+    "detectingShell": "Detecting PowerShell executable to launch scripts...",
+    "shellResolved": "Shell resolved: {path}",
+    "shellNotFound": "Could not resolve a PowerShell executable. Searched: {paths}",
+    "loadingRegistry": "Loading scripts/registry.json from {path}...",
+    "registryMissing": "scripts/registry.json not found at {path} -- aborting.",
+    "categorizing": "Categorizing {count} scripts...",
+    "categoryCount": "Built {catCount} categories from {scriptCount} scripts (singletons {action}).",
+    "scopeStart": "Processing scope '{scope}' -> {topKey}",
+    "scopeDisabled": "Scope '{scope}' disabled in config -- skipping (and cleaning up if previously installed).",
+    "wipingPrevious": "Wiping previous tree at {topKey} (idempotent install)...",
+    "wipeOk": "Previous tree removed: {topKey}",
+    "wipeNothingToDo": "No previous tree at {topKey} -- nothing to wipe.",
+    "writingTopLevel": "Writing top-level entry: {topKey}",
+    "writingCategory": "  Writing category '{category}': {path}",
+    "writingLeaf": "    Writing leaf [{id}] {folder}: {path}",
+    "leafCommand": "      Command: {command}",
+    "regWriteFailed": "FAILED to write {path} -- {error}",
+    "regDeleteFailed": "FAILED to delete {path} -- {error}",
+    "verifyStart": "Verifying final state of scope '{scope}'...",
+    "verifyPass": "  [pass] {label} -- {path}",
+    "verifyMiss": "  [miss] {label} -- {path}",
+    "uninstalling": "Uninstalling Script Fixer context menu from all scopes...",
+    "uninstallScope": "  Removing {topKey}",
+    "uninstallScopeMissing": "  Already absent: {topKey}",
+    "uninstallComplete": "Uninstall complete. Tracking purged.",
+    "refreshing": "Refreshing menu (uninstall -> install)...",
+    "summaryInstalled": "Installed '{label}' across {scopeCount} scope(s), {catCount} categor(ies), {leafCount} script entr(ies).",
+    "summaryFailed": "Install completed WITH ERRORS -- check log above.",
+    "tipRefresh": "Tip: after editing registry.json or bumping version, run: .\\run.ps1 refresh"
+  },
+  "help": {
+    "commands": {
+      "install": "Install (or refresh) the cascading right-click menu in every enabled scope",
+      "uninstall": "Remove the cascading menu from every scope",
+      "refresh": "Uninstall + re-install -- use after editing registry.json or bumping version"
+    },
+    "examples": [
+      ".\\run.ps1 install",
+      ".\\run.ps1 refresh",
+      ".\\run.ps1 uninstall",
+      ".\\run.ps1 -Help"
+    ]
+  }
+}
