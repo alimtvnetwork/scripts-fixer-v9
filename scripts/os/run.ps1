@@ -183,6 +183,23 @@ function Show-OsHelp {
     Write-Host "      - --summary-tail abc: invalid; silently falls back to default 20 (both outputs)" -ForegroundColor DarkGray
     Write-Host "      - --summary-tail 0:  valid; 'totals only' mode -- 0 lines, both outputs" -ForegroundColor DarkGray
     Write-Host ""
+    Write-Host "  TRY IT (copy-paste examples)" -ForegroundColor Cyan
+    Write-Host "    # Invalid: fallback to 20 lines" -ForegroundColor DarkGray
+    Write-Host '      .\run.ps1 os clean-explorer-mru -Verbose --summary-tail -1 --summary-json' -ForegroundColor Yellow
+    Write-Host '      # tail[] shows 20 items (or fewer if buffer smaller)' -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "    # Invalid text: same fallback" -ForegroundColor DarkGray
+    Write-Host '      .\run.ps1 os clean-explorer-mru -Verbose --summary-tail abc --summary-json' -ForegroundColor Yellow
+    Write-Host '      # tail[] shows 20 items (or fewer if buffer smaller)' -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "    # Totals only: empty tail array" -ForegroundColor DarkGray
+    Write-Host '      .\run.ps1 os clean-explorer-mru -Verbose --summary-tail 0 --summary-json' -ForegroundColor Yellow
+    Write-Host '      # tail[] is [] (empty) -- only counts appear' -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "    # Large tail: clamped to buffer size" -ForegroundColor DarkGray
+    Write-Host '      .\run.ps1 os clean-explorer-mru -Verbose --summary-tail 50 --summary-json' -ForegroundColor Yellow
+    Write-Host '      # tail[] shows min(50, buffer.Count) items (max 20 due to buffer cap)' -ForegroundColor DarkGray
+    Write-Host ""
 }
 
 $normalizedAction = ""

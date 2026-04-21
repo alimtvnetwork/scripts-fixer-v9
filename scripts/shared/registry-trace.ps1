@@ -97,6 +97,24 @@
                 --summary-tail 0    -> 0  (valid; "totals only" mode)
                 --summary-tail 50   -> 50 (valid; clamped to buffer if smaller)
 
+    Try it -- copy-pasteable commands:
+        # 1) Invalid negative: falls back to 20 lines
+        .\run.ps1 os clean-explorer-mru -Verbose --summary-tail -1 --summary-json
+        # JSON output: {"tail":[...20 items...],"tailShown":20,...}
+
+        # 2) Invalid text: same fallback to 20
+        .\run.ps1 os clean-explorer-mru -Verbose --summary-tail abc --summary-json
+        # JSON output: {"tail":[...20 items...],"tailShown":20,...}
+
+        # 3) Zero: totals only, empty tail array
+        .\run.ps1 os clean-explorer-mru -Verbose --summary-tail 0 --summary-json
+        # JSON output: {"tail":[],"tailShown":0,"counts":{...}}
+
+        # 4) Large number: clamped to buffer size (max 20)
+        .\run.ps1 os clean-explorer-mru -Verbose --summary-tail 50 --summary-json
+        # JSON output: {"tail":[...up to 20 items...],"tailShown":N,...}
+        # (where N = min(50, actual operation count, 20))
+
 
     CODE RED: every failure entry includes the exact failing registry path +
     the exception message verbatim. Never swallow a path on failure.
