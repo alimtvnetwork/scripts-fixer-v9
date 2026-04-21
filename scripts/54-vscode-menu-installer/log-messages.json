@@ -1,0 +1,50 @@
+{
+  "scriptName": "VS Code Menu Installer / Uninstaller",
+  "description": "Standalone installer and uninstaller for the classic 'Open with Code' right-click entries. Surgical: uninstall touches only paths listed in config.json.",
+  "messages": {
+    "scriptDisabled": "Installer is disabled in config (set 'enabled': true).",
+    "notAdmin": "This script must be run as Administrator.",
+    "checkingAdmin": "Checking Administrator privileges...",
+    "currentUser": "Current user: {name}",
+    "isAdministrator": "Is Administrator: {value}",
+    "configMissing": "config.json not found at {path} -- aborting.",
+    "editionStart": "--- Edition: {name} ({label}) ---",
+    "editionUnknown": "Unknown edition '{name}' in enabledEditions -- no editions.{name} block in config -- skipping.",
+    "resolvingExe": "Resolving VS Code executable for '{name}'...",
+    "exeOverride": "Using -VsCodePath override: {path}",
+    "exeFromConfig": "Using path from config: {path}",
+    "exeMissing": "VS Code executable not found at: {path} -- skipping edition '{name}'.",
+    "exeOk": "VS Code executable resolved: {path}",
+    "writingTarget": "  Writing {target}: {path}",
+    "writingCommand": "    Command: {command}",
+    "writeFailed": "  FAILED to write {path} -- {error}",
+    "writeOk": "  Written: {path}",
+    "verify": "Verifying entries for '{name}'...",
+    "verifyPass": "  [pass] {target} -- {path}",
+    "verifyMiss": "  [miss] {target} -- {path}",
+    "uninstallStart": "Uninstall: surgical removal using path allow-list from config.json.",
+    "uninstallEdition": "--- Removing edition: {name} ---",
+    "removingTarget": "  Removing {target}: {path}",
+    "alreadyAbsent": "  Already absent: {target} -- {path}",
+    "removed": "  Removed: {target} -- {path}",
+    "removeFailed": "  FAILED to remove {path} -- {error}",
+    "summaryInstall": "Install summary -- editions processed: {processed}, skipped: {skipped}.",
+    "summaryUninstall": "Uninstall summary -- keys removed: {removed}, already absent: {absent}, failed: {failed}.",
+    "tip": "Tip: re-run with -Edition <stable|insiders> to target a single edition."
+  },
+  "help": {
+    "commands": {
+      "install": "Write context menu entries for every enabled edition",
+      "uninstall": "Remove ONLY the keys listed in config.json -- never touches sibling keys"
+    },
+    "examples": [
+      ".\\install.ps1",
+      ".\\install.ps1 -Edition stable",
+      ".\\install.ps1 -Edition insiders -VsCodePath 'D:\\VSI\\Code - Insiders.exe'",
+      ".\\uninstall.ps1",
+      ".\\uninstall.ps1 -Edition stable",
+      ".\\run.ps1 install",
+      ".\\run.ps1 uninstall"
+    ]
+  }
+}
