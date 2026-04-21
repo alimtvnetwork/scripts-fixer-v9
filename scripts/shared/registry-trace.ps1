@@ -384,6 +384,7 @@ function Show-RegistryTraceSummary {
     if ($hasTrace) {
         $block = @()
         $block += ""
+        $block += ("  effective tail = {0} (from {1})" -f $TailLines, $Source)
         $block += "  --- summary (last $maxShow of $($counts.Total)) ---"
         for ($i = $start; $i -lt $tailArr.Count; $i++) {
             $block += "    " + $tailArr[$i]
