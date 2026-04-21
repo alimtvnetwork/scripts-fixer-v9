@@ -695,29 +695,53 @@ function Write-SummaryTailWarning {
           2) --summary-tail was present but Get-SummaryTailArg returned $null
 
     .PARAMETER RawInfo
-        The hashtable from Get-SummaryTailRaw (Present/RawValue/Form).
+        The hashtable from Get-SummaryTailRaw (Present/RawValue/Form/Token).
+        The Token field is the verbatim flag token the user typed (e.g.
+        "--summary-tail=", "/summary-tail:", "--Summary-Tail") so the warning
+        can echo it back exactly, helping users grep their own command line.
     #>
     param([Parameter(Mandatory)][hashtable]$RawInfo)
-    $val  = $RawInfo.RawValue
-    $form = $RawInfo.Form
+    $val   = $RawInfo.RawValue
+    $form  = $RawInfo.Form
+    $token = if ($RawInfo.ContainsKey("Token") -and -not [string]::IsNullOrEmpty($RawInfo.Token)) {
+                 $RawInfo.Token
+             } else {
+                 "--summary-tail"  # fallback for older callers
+             }
+
+    # Build a form-specific reason that names the EXACT token the user typed.
+    # This matters most for empty/missing cases where there's no value to echo.
     $reason = switch ($true) {
-        ($form -eq "missing")           { "no value supplied after the flag" ; break }
-        ([string]::IsNullOrEmpty($val)) { "empty value" ; break }
+        ($form -eq "missing") {
+            "flag '$token' supplied with no value after it"; break
+        }
+        ($form -eq "equals" -and [string]::IsNullOrEmpty($val)) {
+            "flag '$token' has an empty value (nothing after the '=')"; break
+        }
+        ($form -eq "colon" -and [string]::IsNullOrEmpty($val)) {
+            "flag '$token' has an empty value (nothing after the ':')"; break
+        }
+        ([string]::IsNullOrEmpty($val)) {
+            "flag '$token' has an empty value"; break
+        }
         default {
             $parsed = 0
             if ([int]::TryParse($val, [ref]$parsed)) {
-                if ($parsed -lt 0) { "negative integers are not allowed (got '$val')" }
-                else               { "value '$val' is not a non-negative integer" }
+                if ($parsed -lt 0) { "'$token$val' rejected -- negative integers are not allowed" }
+                else               { "'$token$val' rejected -- value '$val' is not a non-negative integer" }
             } elseif ($val -match '^-?\d+\.\d+$') {
-                "decimals are not allowed (got '$val'); use an integer"
+                "'$token$val' rejected -- decimals are not allowed; use an integer"
             } else {
-                "value '$val' is not numeric"
+                "'$token$val' rejected -- value '$val' is not numeric"
             }
         }
     }
+
     Write-Host "  [ WARN ] " -ForegroundColor Yellow -NoNewline
     Write-Host "--summary-tail ignored: $reason. Falling back to default 20."
-    Write-Host "          Pass a non-negative integer (e.g. --summary-tail 50, =50, :50)." -ForegroundColor DarkGray
+    Write-Host "          Accepted forms: --summary-tail 50  |  --summary-tail=50  |  --summary-tail:50" -ForegroundColor DarkGray
+    Write-Host "                          (case-insensitive; -summary-tail and /summary-tail also work)" -ForegroundColor DarkGray
+}
 }
 
 function Show-RegistryTraceSummaryJsonOutput {
