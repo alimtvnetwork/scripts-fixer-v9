@@ -42,6 +42,15 @@ if (Test-SummaryJsonSwitch -Argv $Rest) {
     Set-RegistryTraceSummaryJson -Enabled $true
 }
 
+# --summary-tail N: same propagation pattern. Default tail is 20; override
+# with any non-negative integer (0 = totals only). Invalid value is ignored
+# (default kept). Strip both the flag and its value from $Rest.
+$summaryTailArg = Get-SummaryTailArg -Argv $Rest
+if ($null -ne $summaryTailArg) {
+    $Rest = Remove-SummaryTailArg -Argv $Rest
+    $env:REGTRACE_SUMMARY_TAIL = "$summaryTailArg"
+}
+
 $logMessages = $null
 $logMessagesPath = Join-Path $scriptDir "log-messages.json"
 if (Test-Path $logMessagesPath) {
