@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.53.5] -- 2026-04-21
+
+### Documented: comprehensive `--summary-tail` syntax reference
+
+Expanded help text now documents all accepted argument forms with clear valid/invalid examples, eliminating guesswork about which separators and casing work.
+
+- **`scripts/shared/registry-trace.ps1`** comment-based help:
+  - New "Accepted forms (case-insensitive)" subsection lists all 9 valid syntax variants: space/equals/colon separators with double-dash, single-dash, and Windows slash prefixes
+  - New "Valid vs invalid values" table covering negatives, non-numeric strings, decimals, and missing values
+
+- **`scripts/os/run.ps1`** `Show-OsHelp` REGISTRY TRACE FLAGS section:
+  - Expanded syntax list with 6 color-coded examples showing space, equals, colon, single-dash, PascalCase, and slash styles
+  - New "VALID vs INVALID examples" block with 8 lines showing exactly which forms parse correctly vs fall back to 20
+
 ## [v0.53.4] -- 2026-04-21
 
 ### Added: "Try it" copy-paste examples for `--summary-tail`

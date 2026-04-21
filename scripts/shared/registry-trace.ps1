@@ -33,13 +33,25 @@
         script exit (via Close-RegistryTrace). It shows the last N trace lines
         plus OK/FAIL/SKIP totals. Control the tail length with --summary-tail N.
 
-        --summary-tail N formats accepted:
+        --summary-tail N formats accepted (case-insensitive):
           --summary-tail 50       # space separator (POSIX style)
           --summary-tail=50       # equals separator
+          --summary-tail:50       # colon separator
           -summary-tail 50        # single-dash variant with space
-          -summary-tail:50        # colon separator (PowerShell style)
+          -summary-tail=50        # single-dash with equals
+          -summary-tail:50        # single-dash with colon
           -SummaryTail 50         # PascalCase variant (PowerShell binding)
-          --tail-lines 50         # alternative long form
+          /summary-tail 50        # Windows slash style with space
+          /summary-tail=50        # Windows slash with equals
+
+        All forms are case-insensitive (--SUMMARY-TAIL, --SummaryTail work).
+
+        Valid vs invalid values:
+          VALID:   0, 1, 5, 20, 50, 100  (non-negative integers)
+          INVALID: -1, -5                 (negative numbers -> fallback to 20)
+          INVALID: abc, 5x, ''            (non-numeric -> fallback to 20)
+          INVALID: 3.5, 5.0               (decimals -> fallback to 20)
+          INVALID: (missing value)        (--summary-tail at end of args -> 20)
 
         Special value: N=0 means "totals only" -- no trace lines are printed,
         only the OK/FAIL/SKIP counts. Useful for CI logs where you want
