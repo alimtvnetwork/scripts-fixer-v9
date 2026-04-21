@@ -354,9 +354,10 @@
     "conemu-settings":   { "48": "settings-only" },
     "install-conemu":    { "48": "install-only" }
   },
-  "_remoteComment": "Maps remote:<key> entries to the URL streamed via 'irm <url> | iex'. Used by 'install clean-code' / 'install starship' / 'install oh-my-posh' / 'install scoop' etc. Each entry MAY include an optional 'sha256': '<lowercase-hex>' field; when present, run.ps1 hashes the downloaded body BEFORE Invoke-Expression and refuses to execute on mismatch (CODE RED integrity guard, v0.45.2+).",
+  "_remoteComment": "Maps remote:<key> entries to the body streamed via 'irm <url> | iex' (or read from disk when 'path' is present, v0.47.1+). Used by 'install clean-code' / 'install starship' / 'install oh-my-posh' / 'install scoop' etc. Each entry MUST have either 'url' (HTTP) or 'path' (repo-relative) and MAY include an optional 'sha256': '<lowercase-hex>' field; when present, run.ps1 hashes the body BEFORE Invoke-Expression and refuses to execute on mismatch (CODE RED integrity guard, v0.45.2+).",
   "_pinMaintenanceNote": "How to refresh the SHA256 pins (do this whenever an upstream installer publishes a new release, or at least quarterly): (1) Download the body fresh: 'curl -fsSL <remote.<key>.url> -o /tmp/<key>.ps1'. (2) Compute the hash exactly the way run.ps1 does -- UTF-8 bytes of the decoded text body: PowerShell -> '[System.Security.Cryptography.SHA256]::Create().ComputeHash([System.Text.Encoding]::UTF8.GetBytes((Invoke-WebRequest <url>).Content)) | ForEach-Object {$_.ToString(\"x2\")} -join \"\"'. (3) Paste the lowercase hex into the matching 'remote.<key>.sha256' field below. (4) Bump version.json (patch). (5) Run '.\\run.ps1 doctor --self-check' to confirm pins resolve. NEVER commit a hash you didn't verify in the same session -- a stale or guessed hash will make CODE RED refuse every future run of that installer.",
-  "_pinLastVerified": "2026-04-20",
+  "_pinLastVerified": "2026-04-21",
+  "_pathComment": "A remote.<key> entry MAY use 'path' (repo-relative) instead of 'url' to point at a wrapper script checked into THIS repo. The dispatcher loads the body from disk via the local path; the SHA256 pin is still enforced exactly the same way (UTF-8 bytes of the body). Use this when the upstream URL is unreliable (404, takedown, censored region) or when a curated wrapper is preferable to streaming third-party code.",
   "remote": {
     "clean-code": {
       "url":    "https://raw.githubusercontent.com/alimtvnetwork/coding-guidelines-v15/main/install.ps1",
@@ -364,10 +365,9 @@
       "sha256": "c045f55132171ba170c60af0d3b1671059c571bfcc293a7674c2e6a2635b8c42"
     },
     "starship": {
-      "url":    "https://starship.rs/install.ps1",
-      "label":  "Starship cross-shell prompt",
-      "sha256": "",
-      "_sha256_note": "UNPINNED 2026-04-20: upstream URL https://starship.rs/install.ps1 currently returns HTTP 404 (Starship ships only install.sh; Windows users are directed to 'winget install starship' / 'scoop install starship'). Leave sha256 empty until either (a) upstream restores a .ps1 endpoint, or (b) this entry is replaced with a wrapper. Empty string disables the integrity check for this entry only -- run.ps1 will warn the user it is unpinned. Doctor section (e) will skip empty pins."
+      "path":   "scripts/shared/remote-installers/starship.ps1",
+      "label":  "Starship cross-shell prompt (local wrapper -- winget -> scoop -> cargo)",
+      "sha256": "1315b9372510257bad6c5b823c4101f71abd0f4a4d8004f5f15b35076e7a9959"
     },
     "oh-my-posh": {
       "url":    "https://ohmyposh.dev/install.ps1",
