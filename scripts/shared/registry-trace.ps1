@@ -53,6 +53,32 @@
         This is emitted in addition to the human-readable summary. Useful for
         piping to jq, logging aggregators, or CI artifact capture.
 
+    Parity guarantees (human summary vs --summary-json tail array):
+        The human summary's printed line count and the JSON `tail[]` array
+        length are ALWAYS equal for the same REGTRACE_SUMMARY_TAIL value.
+        Both are computed from the same buffer using the same formula:
+            shown = min(REGTRACE_SUMMARY_TAIL, buffer.Count)
+
+        Edge case 1 -- zero recorded operations (buffer empty):
+            Human:  prints "no registry operations recorded this run" notice
+                    and emits 0 trace lines.
+            JSON:   emits payload with `tail: []` (empty array, length 0)
+                    and counts {ok:0, fail:0, skip:0, total:0}.
+            Parity: both show 0 lines. MATCH.
+
+        Edge case 2 -- REGTRACE_SUMMARY_TAIL greater than buffer size:
+            The tail buffer is capped at 20 lines internally
+            ($script:_RegTraceTailMax). Requesting --summary-tail 100 when
+            only 7 ops ran does NOT magically retain more history -- both
+            outputs are clamped to whatever the buffer actually holds.
+            Human:  prints all available lines (e.g. "last 7 of 7").
+            JSON:   `tail[]` contains the same 7 strings; `tailShown=7`,
+                    `tailMax=20` reflects the buffer cap (not the request).
+            Parity: both show min(request, buffer). MATCH.
+
+        Edge case 3 -- negative or non-numeric --summary-tail value:
+            Treated as invalid; default of 20 is used by both outputs.
+
     CODE RED: every failure entry includes the exact failing registry path +
     the exception message verbatim. Never swallow a path on failure.
 #>

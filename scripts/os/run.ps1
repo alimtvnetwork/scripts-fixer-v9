@@ -176,6 +176,11 @@ function Show-OsHelp {
     Write-Host "                            Special: N=0 shows totals only (no tail lines)" -ForegroundColor DarkGray
     Write-Host "    --summary-json          Emit machine-readable JSON summary to stdout (for CI/piping)" -ForegroundColor DarkGray
     Write-Host ""
+    Write-Host "    Parity: human summary line count == JSON tail[] length (same formula)" -ForegroundColor DarkGray
+    Write-Host "      - 0 ops recorded:    human shows 'no operations' notice; JSON tail=[]    (both 0)" -ForegroundColor DarkGray
+    Write-Host "      - tail > buffer:     buffer is capped at 20; both clamp to min(N, buffer)" -ForegroundColor DarkGray
+    Write-Host "      - invalid/negative N: default of 20 applied to both outputs" -ForegroundColor DarkGray
+    Write-Host ""
 }
 
 $normalizedAction = ""
