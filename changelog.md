@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.53.3] -- 2026-04-21
+
+### Documented: invalid `--summary-tail` value handling
+
+Expanded help to spell out exactly what happens when users pass invalid values like `--summary-tail -1` or `--summary-tail abc`. Behavior is unchanged from v0.53.0 -- this is a documentation clarification only.
+
+- **`scripts/shared/registry-trace.ps1`** comment-based help: edge case 3 now traces the full fallback chain (Get-SummaryTailArg returns `$null` -> dispatcher skips setting env var -> Close-RegistryTrace resolves to module default 20 -> both outputs use 20). Includes a worked-examples table covering `-1`, `abc`, `3.5`, `""`, missing value, `0`, and `50`.
+- **`scripts/os/run.ps1`** `Show-OsHelp`: REGISTRY TRACE FLAGS parity block now lists `--summary-tail -1`, `--summary-tail abc`, and `--summary-tail 0` as separate one-liners showing exact fallback behavior.
+
+Key clarification: invalid args are SILENTLY ignored (no warning printed) to keep CI pipelines deterministic. Both human summary and JSON `tail[]` use the same fallback value of 20.
+
 ## [v0.53.2] -- 2026-04-21
 
 ### Documented: parity behavior between human summary and `--summary-json` tail
