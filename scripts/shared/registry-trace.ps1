@@ -97,8 +97,19 @@
                 REGTRACE_SUMMARY_TAIL env  -> empty / unset
                 module default             -> $script:_RegTraceTailMax (20)
             Final value: 20 lines for BOTH the human summary and the JSON
-            `tail[]` array. No warning is printed -- the invalid arg is
-            silently ignored to avoid breaking pipelines.
+            `tail[]` array. By default no warning is printed -- the invalid
+            arg is silently ignored to avoid breaking pipelines.
+
+            Opt-in surfacing: pass --summary-tail-warn alongside an invalid
+            --summary-tail to print a yellow [ WARN ] line explaining
+            EXACTLY why the value was rejected (negative / non-numeric /
+            decimal / missing). Helpful for catching typos in CI configs.
+            Behavior is unchanged otherwise (still falls back to default 20).
+
+            Example:
+                .\run.ps1 os clean --summary-tail abc --summary-tail-warn
+                # [ WARN ] --summary-tail ignored: value 'abc' is not numeric.
+                #         Falling back to default 20.
 
             Worked examples:
                 --summary-tail -1   -> 20 (default, both outputs)
