@@ -53,6 +53,7 @@
     "50": "50-install-onenote",
     "51": "51-install-lightshot",
     "52": "52-vscode-folder-repair",
-    "53": "53-script-fixer-context-menu"
+    "53": "53-script-fixer-context-menu",
+    "54": "54-vscode-menu-installer"
   }
 }

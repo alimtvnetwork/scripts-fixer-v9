@@ -2,7 +2,67 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.57.0] -- 2026-04-21
+
+### Added: standalone install/uninstall pair for the Script Fixer menu (script 53)
+
+Two thin wrappers were added inside `scripts/53-script-fixer-context-menu/`:
+
+- `install.ps1` -- alias for `.\run.ps1 install` (with `-Refresh` for `.\run.ps1 refresh`).
+- `uninstall.ps1` -- alias for `.\run.ps1 uninstall`.
+
+Existence rationale: hand-off / scheduling / linking from another tool now uses self-explanatory file names. All real logic still lives in `run.ps1` (single source of truth).
+
+### Added: script 54 -- standalone VS Code menu installer/uninstaller
+
+A new focused script `scripts/54-vscode-menu-installer/` ships an **independent** installer/uninstaller pair for the classic "Open with Code" right-click entries (file / folder / folder background). Coexists with script 10 (`vscode-context-menu-fix`); the two scripts have different jobs.
+
+### What it does
+
+- `install.ps1` writes the three context menu keys per enabled edition (stable, insiders).
+- `uninstall.ps1` removes ONLY the registry paths declared in `config.json::editions.<name>.registryPaths` -- a strict allow-list. The uninstaller never enumerates the registry and never reads sibling keys, so a separately-installed key like `HKCR\Directory\shell\VSCode2` or `HKCR\Directory\shell\OpenWithCode` is **provably untouched**.
+- `run.ps1` routes `install` / `uninstall` so the master `-I 54` dispatcher can invoke either path.
+
+### Surgical-uninstall guarantee (your locked-in choice)
+
+Per the user's "Path allow-list from config.json" decision, the uninstall loop iterates only over the three explicit `registryPaths` per edition. No registry enumeration, no fallback discovery, no label-match check -- just the static list. This is documented in `spec/54-vscode-menu-installer/readme.md` (G2, G3, section 8).
+
+### Comparison: script 10 vs script 54
+
+| Concern | Script 10 | Script 54 |
+| --- | --- | --- |
+| Standalone install/uninstall files | No | **Yes** |
+| Auto-detect choco shim / WindowsApps / where.exe | Yes | No -- explicit `-VsCodePath` or config |
+| Surgical-by-allow-list uninstall | Best-effort | **Strict** |
+| Shared-helper dependency footprint | Heavy | Light |
+| Use case | First-time setup, troubleshooting | Hand-off, scripted automation |
+
+### File structure
+
+```
+scripts/54-vscode-menu-installer/
+  config.json
+  log-messages.json
+  install.ps1
+  uninstall.ps1
+  run.ps1
+  helpers/
+    vscode-install.ps1
+    vscode-uninstall.ps1
+spec/54-vscode-menu-installer/
+  readme.md
+```
+
+### Implementation notes
+
+- Wildcard-safe writes via `[Microsoft.Win32.Registry]::ClassesRoot.CreateSubKey(...)`; deletes via `reg.exe delete /f`.
+- Both editions (stable + insiders) are handled, and `-Edition <name>` lets you target one.
+- VS Code path resolution is two-tier only: `-VsCodePath` override > expand env vars in `config.editions.<name>.vsCodePath`. No choco / where.exe / WindowsApps fallback (use script 10 for that).
+- **CODE RED**: every install write, every uninstall delete, and every verify miss logs the exact registry path plus the failure reason.
+- Registered as `"54": "54-vscode-menu-installer"` in `scripts/registry.json`.
+
 ## [v0.56.0] -- 2026-04-21
+
 
 ### Added: script 53 -- Script Fixer cascading right-click menu (opt-in)
 
