@@ -1,0 +1,98 @@
+{
+  "_comment": "Opt-in cascading 'Script Fixer v{version}' right-click menu. Set 'enabled' to false to make 'install' a no-op without uninstalling. Per-scope toggles control which Explorer surfaces show the menu.",
+  "enabled": true,
+  "titleTemplate": "Script Fixer v{version}",
+  "categorySubkeyMaxLen": 60,
+  "flattenSingletonCategories": true,
+  "iconPath": "",
+  "shell": {
+    "preferred": "pwsh",
+    "fallback": "powershell",
+    "pwshSearchPaths": [
+      "%ProgramFiles%\\PowerShell\\7\\pwsh.exe",
+      "%ProgramFiles%\\PowerShell\\6\\pwsh.exe",
+      "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\pwsh.exe"
+    ],
+    "legacyPath": "%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+    "commandTemplate": "\"{shellExe}\" -NoExit -ExecutionPolicy Bypass -Command \"Set-Location -LiteralPath '{repoRoot}'; & '.\\run.ps1' -I {scriptId}\""
+  },
+  "scopes": {
+    "file": {
+      "enabled": true,
+      "topKey": "Registry::HKEY_CLASSES_ROOT\\*\\shell\\ScriptFixer"
+    },
+    "directory": {
+      "enabled": true,
+      "topKey": "Registry::HKEY_CLASSES_ROOT\\Directory\\shell\\ScriptFixer"
+    },
+    "background": {
+      "enabled": true,
+      "topKey": "Registry::HKEY_CLASSES_ROOT\\Directory\\Background\\shell\\ScriptFixer"
+    },
+    "desktop": {
+      "enabled": true,
+      "topKey": "Registry::HKEY_CLASSES_ROOT\\DesktopBackground\\Shell\\ScriptFixer"
+    }
+  },
+  "categoryMap": {
+    "_comment": "Folder-name (after NN- prefix strip) -> category label. Anything not listed falls through to the heuristic in helpers/categorize.ps1.",
+    "databases": "Databases",
+    "audit": "Audit",
+    "scan": "Scan",
+    "os": "OS Utilities",
+    "profile": "Profile",
+    "git-tools": "Git Tools",
+    "models": "AI Models",
+    "install-mysql": "Databases",
+    "install-mariadb": "Databases",
+    "install-postgresql": "Databases",
+    "install-mongodb": "Databases",
+    "install-redis": "Databases",
+    "install-couchdb": "Databases",
+    "install-cassandra": "Databases",
+    "install-neo4j": "Databases",
+    "install-elasticsearch": "Databases",
+    "install-duckdb": "Databases",
+    "install-litedb": "Databases",
+    "install-sqlite": "Databases",
+    "install-ollama": "AI Models",
+    "install-llama-cpp": "AI Models",
+    "install-vscode": "Editors & IDEs",
+    "vscode-settings-sync": "Editors & IDEs",
+    "install-notepadpp": "Editors & IDEs",
+    "install-dbeaver": "Editors & IDEs",
+    "install-gitmap": "Editors & IDEs",
+    "install-windows-terminal": "Editors & IDEs",
+    "install-conemu": "Editors & IDEs",
+    "vscode-context-menu-fix": "Context Menu Fixers",
+    "vscode-folder-repair": "Context Menu Fixers",
+    "pwsh-context-menu": "Context Menu Fixers",
+    "script-fixer-context-menu": "Context Menu Fixers",
+    "windows-tweaks": "Windows",
+    "install-winget": "Windows",
+    "install-powershell": "Windows",
+    "install-ubuntu-font": "Windows",
+    "install-docker": "Containers",
+    "install-kubernetes": "Containers",
+    "install-nodejs": "Languages & Runtimes",
+    "install-pnpm": "Languages & Runtimes",
+    "install-python": "Languages & Runtimes",
+    "install-golang": "Languages & Runtimes",
+    "install-cpp": "Languages & Runtimes",
+    "install-php": "Languages & Runtimes",
+    "install-flutter": "Languages & Runtimes",
+    "install-dotnet": "Languages & Runtimes",
+    "install-java": "Languages & Runtimes",
+    "install-rust": "Languages & Runtimes",
+    "install-python-libs": "Languages & Runtimes",
+    "install-git": "Git",
+    "install-github-desktop": "Git",
+    "install-all-dev-tools": "Bundles",
+    "install-package-managers": "Apps",
+    "install-obs": "Apps",
+    "install-whatsapp": "Apps",
+    "install-onenote": "Apps",
+    "install-lightshot": "Apps",
+    "install-sticky-notes": "Apps"
+  }
+}
