@@ -330,6 +330,101 @@ function Remove-SummaryJsonSwitch {
     return ,$out.ToArray()
 }
 
+function Get-SummaryTailArg {
+    <#
+    .SYNOPSIS
+        Parse --summary-tail N (or --summary-tail=N, -summary-tail N,
+        /summary-tail N) from $Argv. Returns the requested int or $null
+        if the flag is absent or its value is invalid.
+
+    .DESCRIPTION
+        Accepted forms:
+            --summary-tail 50
+            -summary-tail 50
+            /summary-tail 50
+            --summary-tail=50
+            -summary-tail=50
+            /summary-tail=50
+
+        Validation: the value must parse as a non-negative integer
+        (>= 0). Negative values, non-numeric values, and a trailing flag
+        with no value all return $null so the caller can fall back to the
+        default of 20. Zero is honoured -- it means "totals only, no tail
+        lines" which is a legitimate request for noisy CI logs.
+    #>
+    param([string[]]$Argv)
+    if ($null -eq $Argv) { return $null }
+
+    $names = @("--summary-tail","-summary-tail","/summary-tail")
+    for ($i = 0; $i -lt $Argv.Count; $i++) {
+        $raw = "$($Argv[$i])"
+        $t   = $raw.Trim()
+        $low = $t.ToLower()
+
+        # Form 1: --summary-tail=N
+        foreach ($n in $names) {
+            if ($low.StartsWith("$n=")) {
+                $val = $t.Substring($n.Length + 1)
+                $parsed = 0
+                $ok = [int]::TryParse($val, [ref]$parsed)
+                if ($ok -and $parsed -ge 0) { return $parsed }
+                return $null
+            }
+        }
+
+        # Form 2: --summary-tail N  (value in the next slot)
+        if ($low -in $names) {
+            if (($i + 1) -lt $Argv.Count) {
+                $parsed = 0
+                $ok = [int]::TryParse("$($Argv[$i + 1])", [ref]$parsed)
+                if ($ok -and $parsed -ge 0) { return $parsed }
+            }
+            return $null
+        }
+    }
+    return $null
+}
+
+function Remove-SummaryTailArg {
+    <#
+    .SYNOPSIS
+        Returns a copy of $Argv with the --summary-tail flag (and its
+        value, when supplied as the next arg) stripped. Mirrors
+        Remove-SummaryJsonSwitch.
+    #>
+    param([string[]]$Argv)
+    if ($null -eq $Argv) { return @() }
+    $names = @("--summary-tail","-summary-tail","/summary-tail")
+    $out = New-Object System.Collections.ArrayList
+    $i = 0
+    while ($i -lt $Argv.Count) {
+        $raw = "$($Argv[$i])"
+        $low = $raw.Trim().ToLower()
+
+        $isEqualsForm = $false
+        foreach ($n in $names) {
+            if ($low.StartsWith("$n=")) { $isEqualsForm = $true; break }
+        }
+        if ($isEqualsForm) { $i++; continue }
+
+        if ($low -in $names) {
+            # Skip the flag AND the following value token if present and
+            # numeric; if the next token is missing or non-numeric, only
+            # skip the flag (defensive: don't eat an unrelated arg).
+            $i++
+            if ($i -lt $Argv.Count) {
+                $parsed = 0
+                if ([int]::TryParse("$($Argv[$i])", [ref]$parsed)) { $i++ }
+            }
+            continue
+        }
+
+        [void]$out.Add($Argv[$i])
+        $i++
+    }
+    return ,$out.ToArray()
+}
+
 function Show-RegistryTraceSummaryJsonOutput {
     <#
     .SYNOPSIS
