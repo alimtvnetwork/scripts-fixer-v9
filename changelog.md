@@ -2,7 +2,42 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.55.0] -- 2026-04-21
+
+### Added: script 52 -- VS Code folder-only context menu repair
+
+A new focused PowerShell script that repairs the Windows Explorer "Open with Code" entry so it appears **only when right-clicking folders** -- not on files and not on empty folder backgrounds -- then restarts `explorer.exe` so the change takes effect immediately without sign-out.
+
+### What it does
+
+1. **Removes** `HKCR\*\shell\VSCode` (file menu) and `HKCR\Directory\Background\shell\VSCode` (background menu)
+2. **Ensures** `HKCR\Directory\shell\VSCode` (folder menu) exists with the correct label, icon and `"%V"` command
+3. **Verifies** each target ended up in the expected state (present / absent)
+4. **Restarts** `explorer.exe` (skippable via `.\run.ps1 no-restart` or `restartExplorer=false`)
+
+Both **stable** and **insiders** editions are processed. Targets are configurable via `removeFromTargets` / `ensureOnTargets` arrays in `config.json`, so the same script can be repurposed (e.g. files-only, background-only) without code changes.
+
+### File structure
+
+```
+scripts/52-vscode-folder-repair/
+  config.json
+  log-messages.json
+  run.ps1
+  helpers/repair.ps1
+spec/52-vscode-folder-repair/
+  readme.md
+```
+
+### Implementation notes
+
+- **Reuses** `Resolve-VsCodePath`, `ConvertTo-RegPath` from script 10's `helpers/registry.ps1` -- no duplicated detection logic.
+- Removal uses `reg.exe delete /f`, ensure uses `[Microsoft.Win32.Registry]::ClassesRoot` (avoids PowerShell provider issues with the `*` wildcard key).
+- **CODE RED compliance**: every remove/ensure/verify failure logs the exact registry path plus the failure reason (`reg.exe exit N` or exception message).
+- Registered as `"52": "52-vscode-folder-repair"` in `scripts/registry.json`.
+
 ## [v0.54.6] -- 2026-04-21
+
 
 ### Improved: thousand-separator `--summary-tail` values now get a dedicated warning
 
