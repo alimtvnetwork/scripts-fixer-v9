@@ -14,7 +14,16 @@
       "%LOCALAPPDATA%\\Microsoft\\WindowsApps\\pwsh.exe"
     ],
     "legacyPath": "%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-    "commandTemplate": "\"{shellExe}\" -NoExit -ExecutionPolicy Bypass -Command \"Set-Location -LiteralPath '{repoRoot}'; & '.\\run.ps1' -I {scriptId}\""
+    "commandTemplate":        "\"{shellExe}\" -NoExit -ExecutionPolicy Bypass -Command \". '{repoRoot}\\scripts\\shared\\confirm-launch.ps1'; Invoke-ConfirmedLaunch -RepoRoot '{repoRoot}' -ScriptId '{scriptId}' -ScriptLabel '{leafLabel}' -CountdownSeconds {countdown}\"",
+    "bypassCommandTemplate":  "\"{shellExe}\" -NoExit -ExecutionPolicy Bypass -Command \". '{repoRoot}\\scripts\\shared\\confirm-launch.ps1'; Invoke-ConfirmedLaunch -RepoRoot '{repoRoot}' -ScriptId '{scriptId}' -ScriptLabel '{leafLabel}' -Bypass\""
+  },
+  "confirmBeforeLaunch": {
+    "_comment": "Default leaves run through confirm-launch.ps1 with a countdown. A SECOND 'no-prompt' leaf is emitted with the Windows Extended verb attribute -- it appears only when the user holds SHIFT while right-clicking.",
+    "enabled": true,
+    "countdownSeconds": 5,
+    "emitBypassLeaves": true,
+    "bypassLabelSuffix": " (no prompt -- Shift)",
+    "bypassSubkeySuffix": "-NoPrompt"
   },
   "scopes": {
     "file": {
