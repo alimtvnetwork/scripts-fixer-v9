@@ -686,6 +686,40 @@ function Remove-SummaryTailQuietSwitch {
     return ,$out.ToArray()
 }
 
+function Test-DecimalLikeString {
+    <#
+    .SYNOPSIS
+        Detect whether a string LOOKS LIKE a decimal/float that a user might
+        have meant as a tail count, even if it's not parseable as a clean
+        Double. Used to give a consistent "decimals are not allowed" warning
+        instead of a generic "not numeric" message.
+
+    .DESCRIPTION
+        Recognised shapes (all return $true):
+            "3.5"      classic decimal
+            "3."       trailing-dot integer (common typo)
+            ".5"       leading-dot fraction
+            "0.5"      zero-prefixed
+            "-3.5"     signed decimal
+            "1e2"      scientific notation (no dot but float-shaped)
+            "1.5e2"    full scientific
+            "3,5"      comma decimal (locale slip / EU style)
+
+        Returns $false for plain integers, empty/null, and things like
+        "abc", "5O", "x3" -- those go through the generic "not numeric"
+        branch instead.
+    #>
+    param([string]$Value)
+    if ([string]::IsNullOrWhiteSpace($Value)) { return $false }
+    $v = $Value.Trim()
+    # Plain integers (incl. signed) are NOT decimal-like.
+    if ($v -match '^-?\d+$') { return $false }
+    # Any of: digits with a dot anywhere, leading/trailing dot, comma
+    # decimal, or scientific notation.
+    if ($v -match '^-?(\d+\.\d*|\d*\.\d+|\d+,\d+|\d+(\.\d+)?[eE]-?\d+)$') { return $true }
+    return $false
+}
+
 function Write-SummaryTailWarning {
     <#
     .SYNOPSIS
@@ -711,6 +745,8 @@ function Write-SummaryTailWarning {
 
     # Build a form-specific reason that names the EXACT token the user typed.
     # This matters most for empty/missing cases where there's no value to echo.
+    # Decimal-like detection runs BEFORE the generic "not numeric" branch so
+    # "3.", ".5", "1e2", "3,5" all get the same consistent decimal message.
     $reason = switch ($true) {
         ($form -eq "missing") {
             "flag '$token' supplied with no value after it"; break
@@ -729,8 +765,8 @@ function Write-SummaryTailWarning {
             if ([int]::TryParse($val, [ref]$parsed)) {
                 if ($parsed -lt 0) { "'$token$val' rejected -- negative integers are not allowed" }
                 else               { "'$token$val' rejected -- value '$val' is not a non-negative integer" }
-            } elseif ($val -match '^-?\d+\.\d+$') {
-                "'$token$val' rejected -- decimals are not allowed; use an integer"
+            } elseif (Test-DecimalLikeString -Value $val) {
+                "'$token$val' rejected -- decimals are not allowed (got '$val'); use a non-negative integer"
             } else {
                 "'$token$val' rejected -- value '$val' is not numeric"
             }
@@ -741,7 +777,6 @@ function Write-SummaryTailWarning {
     Write-Host "--summary-tail ignored: $reason. Falling back to default 20."
     Write-Host "          Accepted forms: --summary-tail 50  |  --summary-tail=50  |  --summary-tail:50" -ForegroundColor DarkGray
     Write-Host "                          (case-insensitive; -summary-tail and /summary-tail also work)" -ForegroundColor DarkGray
-}
 }
 
 function Show-RegistryTraceSummaryJsonOutput {
