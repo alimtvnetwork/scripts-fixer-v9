@@ -328,8 +328,16 @@ function Show-RegistryTraceSummary {
 
     .PARAMETER TailLines
         How many recent lines to show. Defaults to 20.
+
+    .PARAMETER Source
+        Origin of the resolved tail value: "param" | "env" | "default".
+        Used to print "effective tail = N (from <source>)" in the header
+        so users can confirm which fallback won.
     #>
-    param([int]$TailLines = 20)
+    param(
+        [int]$TailLines = 20,
+        [string]$Source = "default"
+    )
 
     $counts = Get-RegistryTraceCounts
     $hasTrace = $script:_RegTraceEnabled -and $script:_RegTracePath
@@ -338,6 +346,7 @@ function Show-RegistryTraceSummary {
     Write-Host ""
     Write-Host "  Registry trace summary" -ForegroundColor Cyan
     Write-Host "  ----------------------" -ForegroundColor DarkGray
+    Write-Host ("    effective tail = {0} (from {1})" -f $TailLines, $Source) -ForegroundColor DarkGray
 
     if (-not $hasOps) {
         if ($hasTrace) {
@@ -375,6 +384,7 @@ function Show-RegistryTraceSummary {
     if ($hasTrace) {
         $block = @()
         $block += ""
+        $block += ("  effective tail = {0} (from {1})" -f $TailLines, $Source)
         $block += "  --- summary (last $maxShow of $($counts.Total)) ---"
         for ($i = $start; $i -lt $tailArr.Count; $i++) {
             $block += "    " + $tailArr[$i]
@@ -668,8 +678,16 @@ function Show-RegistryTraceSummaryJsonOutput {
 
     .PARAMETER TailLines
         How many recent lines to include. Defaults to 20.
+
+    .PARAMETER Source
+        Origin of the resolved tail value: "param" | "env" | "default".
+        Echoed in the JSON as `tailSource` so machine consumers can
+        distinguish a default from an explicit user choice.
     #>
-    param([int]$TailLines = 20)
+    param(
+        [int]$TailLines = 20,
+        [string]$Source = "default"
+    )
 
     $counts = Get-RegistryTraceCounts
     $hasTrace = $script:_RegTraceEnabled -and $script:_RegTracePath
@@ -685,19 +703,20 @@ function Show-RegistryTraceSummaryJsonOutput {
     }
 
     $payload = [ordered]@{
-        script    = $script:_RegTraceScript
-        logfile   = if ($hasTrace) { $script:_RegTracePath } else { $null }
-        verbose   = [bool]$script:_RegTraceEnabled
-        counts    = [ordered]@{
+        script     = $script:_RegTraceScript
+        logfile    = if ($hasTrace) { $script:_RegTracePath } else { $null }
+        verbose    = [bool]$script:_RegTraceEnabled
+        counts     = [ordered]@{
             ok    = [int]$counts.OK
             fail  = [int]$counts.FAIL
             skip  = [int]$counts.SKIP
             total = [int]$counts.Total
         }
-        tail      = @($shown.ToArray())
-        tailShown = [int]$shown.Count
-        tailMax   = [int]$TailLines
-        timestamp = (Get-Date).ToString("o")
+        tail       = @($shown.ToArray())
+        tailShown  = [int]$shown.Count
+        tailMax    = [int]$TailLines
+        tailSource = "$Source"
+        timestamp  = (Get-Date).ToString("o")
     }
 
     # -Compress = single line; safer for line-oriented consumers (jq -c, grep)
@@ -725,9 +744,12 @@ function Close-RegistryTrace {
     )
 
     # Resolve effective tail count: explicit param > env var > default.
+    # Track which source won so the human + JSON summaries can echo it.
     $effectiveTail = $script:_RegTraceTailMax
+    $tailSource    = "default"
     if ($null -ne $TailLines) {
         $effectiveTail = [int]$TailLines
+        $tailSource    = "param"
     } else {
         try {
             $envTail = [Environment]::GetEnvironmentVariable("REGTRACE_SUMMARY_TAIL")
@@ -735,6 +757,7 @@ function Close-RegistryTrace {
                 $parsed = 0
                 if ([int]::TryParse($envTail, [ref]$parsed) -and $parsed -ge 0) {
                     $effectiveTail = $parsed
+                    $tailSource    = "env"
                 }
             }
         } catch { } # leave default on any read failure
@@ -744,7 +767,7 @@ function Close-RegistryTrace {
     # Always print the one-command summary (last N + totals) unless suppressed.
     # Safe when -Verbose was not set: prints a one-line "no trace" notice.
     if (-not $NoSummary) {
-        Show-RegistryTraceSummary -TailLines $effectiveTail
+        Show-RegistryTraceSummary -TailLines $effectiveTail -Source $tailSource
     }
 
     # Machine-readable JSON summary (--summary-json). Honour either the
@@ -759,7 +782,7 @@ function Close-RegistryTrace {
     } catch { $envOn = $false }
     $emitJson = $script:_RegTraceSummaryJson -or $envOn
     if ($emitJson -and -not $NoSummary) {
-        try { Show-RegistryTraceSummaryJsonOutput -TailLines $effectiveTail }
+        try { Show-RegistryTraceSummaryJsonOutput -TailLines $effectiveTail -Source $tailSource }
         catch { Write-Host "  [ WARN ] summary-json emit failed: $($_.Exception.Message)" -ForegroundColor Yellow }
     }
 

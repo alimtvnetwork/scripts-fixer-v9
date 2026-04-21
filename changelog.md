@@ -2,6 +2,43 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.54.1] -- 2026-04-21
+
+### Added: "effective tail" line in summary header
+
+The end-of-run registry-trace summary now displays which fallback was used to resolve the tail value, so users can confirm at a glance whether their `--summary-tail` was honoured or silently overridden.
+
+**Human summary** -- new line right under the header:
+```
+  Registry trace summary
+  ----------------------
+    effective tail = 20 (from default)
+    last 7 of 7 trace line(s):
+    ...
+```
+
+The `(from ...)` value is one of:
+- **`param`** -- explicit `-TailLines` parameter passed to `Close-RegistryTrace` (programmatic callers)
+- **`env`** -- resolved from `REGTRACE_SUMMARY_TAIL` env var (set by `--summary-tail N` at the dispatcher)
+- **`default`** -- nothing valid was passed; fell back to the module default (20)
+
+**JSON summary** -- new `tailSource` field with the same three values:
+```json
+{"...","tailShown":20,"tailMax":20,"tailSource":"env","timestamp":"..."}
+```
+
+**Logfile mirror** -- the in-file summary block also gains the `effective tail = N (from <source>)` line so the trace logfile stays self-describing.
+
+### Implementation
+
+- **`scripts/shared/registry-trace.ps1`**:
+  - `Close-RegistryTrace` now tracks a `$tailSource` variable alongside `$effectiveTail` during the param > env > default resolution chain
+  - `Show-RegistryTraceSummary` accepts a new `-Source` parameter and prints the "effective tail" line in the header (always shown, even when 0 ops recorded)
+  - `Show-RegistryTraceSummaryJsonOutput` accepts `-Source` and emits it as `tailSource` in the JSON payload
+  - In-file summary mirror also prints the same line for log self-documentation
+
+No breaking changes -- new parameters default to `"default"` so external callers continue to work unchanged.
+
 ## [v0.54.0] -- 2026-04-21
 
 ### Added: opt-in `--summary-tail-warn` flag for surfacing invalid `--summary-tail` values
