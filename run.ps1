@@ -1532,6 +1532,9 @@ function Invoke-DoctorSelfCheck {
     # (d) install-keywords.json: every keyword resolves
     # ============================================================
     Write-SCHeader "(d) install-keywords.json: keyword resolution"
+    if ($SkipNetwork) {
+        Write-SCRow "keywords" "(skipped -- --skip-network)" $true "Section (d) requires HEAD probes to remote URLs; skipped per flag."
+    } else {
     $kwFile = Join-Path $sharedDir "install-keywords.json"
     $regFile = Join-Path $scriptsRoot "registry.json"
     if (-not (Test-Path $kwFile)) {
@@ -1644,6 +1647,118 @@ function Invoke-DoctorSelfCheck {
                 }
 
                 Write-SCRow "keyword" $kw $allOk ($details -join ", ")
+            }
+        }
+    }
+    } # end if (-not $SkipNetwork) for section (d)
+
+    # ============================================================
+    # (e) install-keywords.json: pinned remote.<key>.sha256 still matches live body
+    # ============================================================
+    Write-SCHeader "(e) remote SHA256 pins still match upstream body"
+    if ($SkipNetwork) {
+        Write-SCRow "sha256" "(skipped -- --skip-network)" $true "Section (e) requires full GET of every remote URL; skipped per flag."
+    } else {
+        $kwFileE = Join-Path $sharedDir "install-keywords.json"
+        if (-not (Test-Path $kwFileE)) {
+            Write-SCRow "sha256" "install-keywords.json" $false "Missing at: $kwFileE"
+        } else {
+            try {
+                $kwDataE = Get-Content $kwFileE -Raw | ConvertFrom-Json
+            } catch {
+                Write-SCRow "sha256" "json parse" $false "Parse error at ${kwFileE}: $($_.Exception.Message)"
+                $kwDataE = $null
+            }
+            if ($null -ne $kwDataE -and $null -ne $kwDataE.remote) {
+                $remoteCount = 0
+                foreach ($rprop in $kwDataE.remote.PSObject.Properties) {
+                    $rkey = $rprop.Name
+                    $rval = $rprop.Value
+                    $remoteCount++
+
+                    # Pull pinned sha256 (skip if absent or empty)
+                    $pinned = $null
+                    if ($rval.PSObject.Properties['sha256']) {
+                        $rawPin = "$($rval.sha256)".Trim()
+                        if (-not [string]::IsNullOrWhiteSpace($rawPin)) { $pinned = $rawPin.ToLowerInvariant() }
+                    }
+                    if ($null -eq $pinned) {
+                        Write-SCRow "sha256" "remote:$rkey" $true "(unpinned -- skipped, no sha256 to verify)"
+                        continue
+                    }
+
+                    # Resolve source: 'path' (repo-local) or 'url' (HTTP)
+                    $hasRPath = $rval.PSObject.Properties['path'] -and -not [string]::IsNullOrWhiteSpace("$($rval.path)")
+                    $hasRUrl  = $rval.PSObject.Properties['url']  -and -not [string]::IsNullOrWhiteSpace("$($rval.url)")
+                    $body = $null
+                    $sourceLabel = $null
+                    $fetchError = $null
+
+                    if ($hasRPath) {
+                        $relPath = "$($rval.path)".Trim()
+                        $absPath = Join-Path $RootDir $relPath
+                        $sourceLabel = "local: $absPath"
+                        if (-not (Test-Path -LiteralPath $absPath)) {
+                            $fetchError = "Local wrapper not found: $absPath  (referenced by remote.$rkey.path in $kwFileE)"
+                        } else {
+                            try {
+                                $body = Get-Content -LiteralPath $absPath -Raw -ErrorAction Stop
+                            } catch {
+                                $fetchError = "Read failed for $absPath -- $($_.Exception.Message)"
+                            }
+                        }
+                    } elseif ($hasRUrl) {
+                        $rurl = "$($rval.url)".Trim()
+                        $sourceLabel = $rurl
+                        try {
+                            # Mirror run.ps1 dispatcher: Invoke-RestMethod returns the decoded string body.
+                            $body = Invoke-RestMethod -Uri $rurl -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop
+                        } catch {
+                            $code = ""
+                            if ($null -ne $_.Exception.Response -and $null -ne $_.Exception.Response.StatusCode) {
+                                $code = " (HTTP $([int]$_.Exception.Response.StatusCode))"
+                            }
+                            $fetchError = "GET failed for ${rurl}${code} -- $($_.Exception.Message)"
+                        }
+                    } else {
+                        Write-SCRow "sha256" "remote:$rkey" $false "Entry has neither 'url' nor 'path' (path: $kwFileE)"
+                        continue
+                    }
+
+                    if ($null -ne $fetchError) {
+                        Write-SCRow "sha256" "remote:$rkey" $false $fetchError
+                        continue
+                    }
+                    if ([string]::IsNullOrWhiteSpace($body)) {
+                        Write-SCRow "sha256" "remote:$rkey" $false "Empty body from $sourceLabel  (pin source: remote.$rkey.sha256 in $kwFileE)"
+                        continue
+                    }
+
+                    # Compute SHA256 IDENTICALLY to run.ps1 dispatcher: UTF-8 bytes of the decoded string.
+                    try {
+                        $bytes = [System.Text.Encoding]::UTF8.GetBytes("$body")
+                        $sha = [System.Security.Cryptography.SHA256]::Create()
+                        $hashBytes = $sha.ComputeHash($bytes)
+                        $sha.Dispose()
+                        $actual = ([System.BitConverter]::ToString($hashBytes) -replace '-', '').ToLowerInvariant()
+                    } catch {
+                        Write-SCRow "sha256" "remote:$rkey" $false "SHA256 computation failed for $sourceLabel -- $($_.Exception.Message)"
+                        continue
+                    }
+
+                    $isMatch = $actual -eq $pinned
+                    if ($isMatch) {
+                        Write-SCRow "sha256" "remote:$rkey" $true "pinned=$pinned  source=$sourceLabel  ($([Math]::Round(([System.Text.Encoding]::UTF8.GetBytes($body)).Length / 1KB, 2)) KB)"
+                    } else {
+                        $detail = "MISMATCH  expected=$pinned  actual=$actual  source=$sourceLabel  pin=remote.$rkey.sha256 in $kwFileE"
+                        Write-SCRow "sha256" "remote:$rkey" $false $detail
+                    }
+                }
+                if ($remoteCount -eq 0) {
+                    Write-SCRow "sha256" "remote.* entries" $true "(no entries to check -- remote.* is empty)"
+                }
+            } elseif ($null -ne $kwDataE) {
+                Write-SCRow "sha256" "remote.* section" $true "(no remote.* section in $kwFileE -- nothing to verify)"
             }
         }
     }
