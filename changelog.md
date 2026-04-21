@@ -2,6 +2,33 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.54.5] -- 2026-04-21
+
+### Improved: decimal-like `--summary-tail` values now warn consistently
+
+Previously only strict `N.N` shapes (e.g. `3.5`) triggered the "decimals are not allowed" warning. Edge cases like `3.`, `.5`, `1e2`, or `3,5` (locale-comma) fell through to the generic "is not numeric" branch, confusing users who clearly intended a number.
+
+**Behavior change** (warning text only -- all of these still fall back to default 20):
+
+| Input        | Before (v0.54.4)                          | After (v0.54.5)                                |
+| ------------ | ----------------------------------------- | ---------------------------------------------- |
+| `3.5`        | "decimals are not allowed"                | "decimals are not allowed (got '3.5')"         |
+| `3.`         | "value '3.' is not numeric"               | "decimals are not allowed (got '3.')"          |
+| `.5`         | "value '.5' is not numeric"               | "decimals are not allowed (got '.5')"          |
+| `1e2`        | "value '1e2' is not numeric"              | "decimals are not allowed (got '1e2')"         |
+| `3,5`        | "value '3,5' is not numeric"              | "decimals are not allowed (got '3,5')"         |
+| `abc`        | "value 'abc' is not numeric"              | unchanged                                      |
+| `5O`         | "value '5O' is not numeric"               | unchanged                                      |
+
+### Implementation
+
+- **`scripts/shared/registry-trace.ps1`** -- new `Test-DecimalLikeString` helper centralises decimal detection. Recognised shapes: classic decimals (`3.5`), trailing dot (`3.`), leading dot (`.5`), signed decimals (`-3.5`), scientific notation (`1e2`, `1.5e2`), and comma-decimal (`3,5`). Plain integers still return `$false`.
+- `Write-SummaryTailWarning` -- swapped the inline `^-?\d+\.\d+$` regex for a call to `Test-DecimalLikeString`. Decimal branch now echoes the offending value to match the format of the negative-integer branch.
+- **Bug fix**: removed an orphan trailing `}` that had crept in after `Write-SummaryTailWarning` (would have caused a parser error if any function was added below it).
+- **Verified**: all 16 test inputs (integers / decimal-like / non-numeric edge cases) route through the correct branch.
+
+No changes to `Get-SummaryTailArg` validation -- the parser continues to reject anything that isn't a non-negative integer. Only the warning-message classification got more precise.
+
 ## [v0.54.4] -- 2026-04-21
 
 ### Improved: warning message echoes exact `--summary-tail` token form
