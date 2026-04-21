@@ -40,6 +40,15 @@ $isVerbose = $false
 if (Test-Path -LiteralPath $verboseTracePath) {
     . $verboseTracePath
     $isVerbose = Test-VerboseSwitch -Argv $Argv
+
+    # --summary-json: strip from $Argv (the category helper uses
+    # [CmdletBinding()] and would reject the unknown switch) and propagate
+    # via env so its Close-RegistryTrace call emits a JSON summary line.
+    if (Test-SummaryJsonSwitch -Argv $Argv) {
+        $Argv = Remove-SummaryJsonSwitch -Argv $Argv
+        $env:REGTRACE_SUMMARY_JSON = "1"
+        Set-RegistryTraceSummaryJson -Enabled $true
+    }
 }
 
 $helperPath = Join-Path $categoriesDir "$Category.ps1"
