@@ -2,6 +2,36 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.54.6] -- 2026-04-21
+
+### Improved: thousand-separator `--summary-tail` values now get a dedicated warning
+
+US-style (`1,000`) and EU-style (`1.000`) thousand-separated integers were previously misclassified -- `1,000` got the "comma decimal" warning (because of `3,5`), and `1.000` got the "trailing-dot decimal" warning. Both are clearly grouped integers, not decimals, so they now route through a dedicated branch that names the actual problem and suggests the stripped form.
+
+**Behavior change** (warning text only -- all still fall back to default 20):
+
+| Input          | Before (v0.54.5)                                | After (v0.54.6)                                                                              |
+| -------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `1,000`        | "decimals are not allowed (got '1,000')"        | "thousand separators (',') are not allowed (got '1,000'); use a plain integer like '1000'"   |
+| `1,000,000`    | "value '1,000,000' is not numeric"              | "thousand separators (',') are not allowed (got '1,000,000'); use a plain integer like '1000000'" |
+| `1.000`        | "decimals are not allowed (got '1.000')"        | "thousand separators ('.') are not allowed (got '1.000'); use a plain integer like '1000'"   |
+| `1.000.000`    | "value '1.000.000' is not numeric"              | "thousand separators ('.') are not allowed (got '1.000.000'); use a plain integer like '1000000'" |
+| `-1,000`       | "decimals are not allowed (got '-1,000')"      | "thousand separators (',') are not allowed (got '-1,000'); use a plain integer like '-1000'" |
+| `1,000.50`     | "value '1,000.50' is not numeric"               | unchanged (mixed separators -- ambiguous, stays generic)                                     |
+| `3,5` / `3.5`  | "decimals are not allowed"                      | unchanged (still decimal-like)                                                               |
+| `1,00`         | "value '1,00' is not numeric"                   | unchanged (2-digit trailing group is not a thousands shape)                                  |
+
+### Implementation
+
+- **`scripts/shared/registry-trace.ps1`** -- new `Test-ThousandSeparatorString` helper. Matches `^-?\d{1,3}(,\d{3})+$` (all-comma) and `^-?\d{1,3}(\.\d{3})+$` (all-dot). Mixed separators are intentionally rejected so they fall through to the generic branch.
+- `Test-DecimalLikeString` now short-circuits to `$false` when the input matches a thousand-separator shape, so `1,000` / `1.000` never get misclassified as decimals.
+- `Write-SummaryTailWarning` -- new branch placed BEFORE the decimal branch. Picks the separator (`','` or `'.'`) by inspecting the value, and computes the stripped suggestion (`$val -replace '[,.]',''`) so the user sees exactly what to type instead.
+- **Verified**: thousand-sep, decimal, and integer inputs all route through their intended branch. Single-group `1.000` is treated as thousands (typo-friendly default), not as the decimal `1.000`.
+
+No changes to `Get-SummaryTailArg` validation -- the parser still rejects anything that isn't a non-negative integer. Only the warning-message classification got more precise.
+
+---
+
 ## [v0.54.5] -- 2026-04-21
 
 ### Improved: decimal-like `--summary-tail` values now warn consistently
