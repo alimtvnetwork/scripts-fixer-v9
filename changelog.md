@@ -2,6 +2,89 @@
 
 All notable changes to this project are documented in this file.
 
+> **Version note:** the user requested v0.47.1 for this change, but v0.47.1 was
+> already published (the starship local-wrapper release on 2026-04-21). To keep
+> the version chain monotonic this entry ships as **v0.48.1**.
+
+## [v0.48.1] -- 2026-04-21
+
+### Added: doctor `--self-check` section (e) -- live SHA256 pin verification + new `--skip-network` flag
+
+Section (e) closes the last gap in the CODE RED integrity chain. Sections (a)-(d) verify that the project is internally consistent (files exist, version matches, catalog wired up, keywords resolve). Section (e) goes further and verifies that **the bytes pinned in `install-keywords.json` still match the bytes the dispatcher will actually execute** -- catching the case where an upstream installer (e.g. `get.scoop.sh`, `ohmyposh.dev/install.ps1`) silently published a new release and the local pin has gone stale, or where a maintainer rebumped a hash without re-fetching the body.
+
+A new `--skip-network` flag turns off both sections (d) and (e) for offline / air-gapped use; sections (a)-(c) always run because they only touch the filesystem.
+
+### What section (e) does, exactly
+
+For every `remote.<key>` entry in `scripts/shared/install-keywords.json`:
+
+1. **Skip if `sha256` is empty or absent** -- prints `[ OK ] sha256  remote:<key>  (unpinned -- skipped, no sha256 to verify)`. This keeps unpinned entries from blocking a green run; section (d) already warns about them via the dispatcher's yellow `(not pinned ...)` banner at install time.
+2. **Resolve the source** -- `path` (repo-relative, v0.47.1+) wins over `url` (HTTP). `path` entries are read from disk via `Get-Content -LiteralPath -Raw`; `url` entries are fetched via `Invoke-RestMethod -UseBasicParsing -TimeoutSec 30` (full GET, **not** HEAD -- HEAD doesn't return a body, so it cannot be hashed).
+3. **Hash identically to `run.ps1` dispatcher** -- `[System.Text.Encoding]::UTF8.GetBytes("$body")` -> `SHA256.Create().ComputeHash(...)` -> hex via `BitConverter.ToString -replace '-', ''` -> `ToLowerInvariant()`. This is byte-for-byte the same code path as the dispatcher's pre-exec verification at `run.ps1:~2400`, so a green doctor row is a hard guarantee that `install <key>` will pass the runtime hash check.
+4. **Compare and report**:
+   - **Match**: `[ OK ] sha256  remote:<key>  pinned=<hex>  source=<url-or-path>  (<KB> KB)`
+   - **Mismatch**: `[FAIL] sha256  remote:<key>  MISMATCH  expected=<pinned-hex>  actual=<live-hex>  source=<url-or-path>  pin=remote.<key>.sha256 in <abs-path-to-install-keywords.json>`
+   - **Fetch error** (HTTP 404, timeout, DNS fail, missing local file): `[FAIL] sha256  remote:<key>  GET failed for <url> (HTTP 404) -- <exception message>` -- includes HTTP status code when available.
+   - **Empty body**: `[FAIL] sha256  remote:<key>  Empty body from <source>  (pin source: ...)`.
+
+### What `--skip-network` does
+
+When passed to `doctor --self-check`, the dispatcher skips both sections (d) (HEAD probes for keyword resolution) and (e) (full GETs for hash verification). Each prints a single green `[ OK ]` row noting the skip:
+
+```
+  -- (d) install-keywords.json: keyword resolution
+    [ OK ] keywords  (skipped -- --skip-network)         Section (d) requires HEAD probes to remote URLs; skipped per flag.
+
+  -- (e) remote SHA256 pins still match upstream body
+    [ OK ] sha256    (skipped -- --skip-network)         Section (e) requires full GET of every remote URL; skipped per flag.
+```
+
+Aliases accepted: `--skip-network`, `-skip-network`, `skipnetwork`, `--skipnetwork`, `skip-network`, `--offline`, `-offline`, `offline`.
+
+### Files updated
+
+- `run.ps1`
+  - **`Invoke-DoctorSelfCheck`** -- added `[switch]$SkipNetwork` parameter; updated function comment to document section (e); section (d) now wrapped in `if (-not $SkipNetwork) { ... }`; section (e) added immediately before the Summary block. Both skipped sections still emit one green row each so the summary tally remains meaningful.
+  - **Section (e) implementation** -- ~70 new lines. Iterates `kwData.remote.*`, handles `path` AND `url` sources symmetrically, mirrors the dispatcher's exact UTF-8 + SHA256 byte sequence, never crashes on a single bad entry (per-entry try/catch), reports KB size on success.
+  - **Bare-doctor command dispatcher** -- now also detects `--skip-network` (and aliases) in `$Install` args alongside `--self-check`, then forwards via `Invoke-DoctorSelfCheck -SkipNetwork:$isSkipNetwork`.
+  - **`Show-RootHelp`** -- replaced the single `doctor --self-check` line with two: one for the full audit, one demonstrating `--skip-network`.
+- `scripts/version.json` -- bumped `0.48.0` -> `0.48.1` (patch: new audit + new flag are additive; sections (a)-(d) behaviour unchanged when invoked without `--skip-network`).
+- `changelog.md` -- this entry. Includes the version-note caveat that v0.47.1 was already taken, so the requested patch ships as v0.48.1.
+
+### Verification on Windows
+
+```powershell
+.\run.ps1 doctor --self-check
+# expect: 5 sections rendered (was 4); section (e) prints one row per remote.* entry.
+# Today's expected output for the 4 pinned entries (v0.48.0 baseline):
+#   [ OK ] sha256  remote:clean-code   pinned=c045f55132171ba170c60af0d3b1671059c571bfcc293a7674c2e6a2635b8c42  source=https://raw.githubusercontent.com/.../install.ps1  (~ KB)
+#   [ OK ] sha256  remote:starship     pinned=1315b9372510257bad6c5b823c4101f71abd0f4a4d8004f5f15b35076e7a9959  source=local: <repo>\scripts\shared\remote-installers\starship.ps1  (5.73 KB)
+#   [ OK ] sha256  remote:oh-my-posh   pinned=eae09e2ff6a7312b59507d26a5335550580fd8f8ea59334dc2a0a6026ae225ba  source=https://ohmyposh.dev/install.ps1  (~ KB)
+#   [ OK ] sha256  remote:scoop        pinned=48f6ea398b3a3fa26fae0093d37bd85b13e7eaa5d1d4a3e208408768408e35ae  source=https://get.scoop.sh  (~ KB)
+# Final summary tally now includes the 4 new rows.
+
+.\run.ps1 doctor --self-check --skip-network
+# expect: sections (a), (b), (c) run normally; sections (d) and (e) print one green
+#         "(skipped -- --skip-network)" row each. Final summary: ~60-something OK
+#         (a)+(b)+(c) rows + 2 skip rows, 0 FAIL, no HTTP traffic in netstat.
+
+.\run.ps1 doctor --self-check --offline
+# expect: identical to --skip-network (alias).
+```
+
+### Negative tests
+
+1. **Stale pin test**: edit `remote.scoop.sha256` in `install-keywords.json` -- flip the leading `4` to `5`. Run `.\run.ps1 doctor --self-check` -> expect `[FAIL] sha256  remote:scoop  MISMATCH  expected=5...  actual=48f6...  source=https://get.scoop.sh  pin=remote.scoop.sha256 in <abs-path>`. Revert -> green again. CRUCIALLY, the same edit causes the dispatcher's runtime check (`run.ps1 install scoop`) to refuse with the EXACT same expected vs actual hashes, because both code paths share the identical UTF-8 + SHA256 sequence.
+2. **Upstream drift simulation**: temporarily change `remote.scoop.url` from `https://get.scoop.sh` to `https://raw.githubusercontent.com/ScoopInstaller/Install/master/install.ps1` (a different but real installer body). Section (e) prints `[FAIL] sha256  remote:scoop  MISMATCH  expected=48f6...  actual=<new-hex>  source=<new-url>  pin=...`. This is what would happen organically if the upstream maintainers published a new release without us re-pinning.
+3. **404 test**: change `remote.starship.path` from `scripts/shared/remote-installers/starship.ps1` to `scripts/shared/remote-installers/starship-MISSING.ps1`. Section (e) prints `[FAIL] sha256  remote:starship  Local wrapper not found: <abs>  (referenced by remote.starship.path in <kw-file>)`. CODE RED satisfied: failure includes both the path AND the reason.
+4. **Network outage test**: disable WiFi, run `.\run.ps1 doctor --self-check`. Sections (d) and (e) cascade-fail with HTTP error rows. Then run `.\run.ps1 doctor --self-check --skip-network` -> all-green again. This is the supported workflow for offline CI / air-gapped runners.
+5. **Unpinned-entry test**: temporarily set `remote.scoop.sha256 = ""`. Section (e) row becomes `[ OK ] sha256  remote:scoop  (unpinned -- skipped, no sha256 to verify)` instead of attempting verification. The green-on-skip behaviour matches the dispatcher's existing "yellow warning, but continue" stance for unpinned entries.
+
+### Why this matters
+
+Before v0.48.1, the only way to detect a stale pin was to actually run `install <key>` and watch for the dispatcher's `[ FAIL ] SHA256 mismatch` block. That meant the failure surfaced once a user tried to install -- typically on a fresh machine, mid-bootstrap, when failure is most disruptive. After v0.48.1, `doctor --self-check` is a single command that surfaces drift proactively, before any install attempt, with the exact pin location to edit. Run it on a schedule (cron / task scheduler) or in CI to detect upstream releases the moment they happen.
+
+
 ## [v0.48.0] -- 2026-04-21
 
 ### Added: OS Clean Phase 7 -- 5 more dev-tool cache categories (Bucket F, total = 59)
