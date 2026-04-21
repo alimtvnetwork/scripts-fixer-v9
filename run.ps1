@@ -2259,7 +2259,17 @@ if ($hasCommand) {
         Show-VersionHeader
         Invoke-PathCommand -Args $Install
         exit 0
-    } elseif ($isBareDoctorCommand) {
+    } elseif ($isBareScanCommand) {
+        Show-VersionHeader
+        $scanScript = Join-Path $RootDir "scripts\scan\run.ps1"
+        $isScanScriptPresent = Test-Path $scanScript
+        if (-not $isScanScriptPresent) {
+            Write-Host "  [ FAIL ] " -ForegroundColor Red -NoNewline
+            Write-Host "Scan dispatcher missing at: $scanScript"
+            exit 1
+        }
+        & $scanScript @Install
+        exit $LASTEXITCODE
         Show-VersionHeader
         # Detect --self-check flag in remaining args
         $isSelfCheck = $false
