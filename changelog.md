@@ -2,6 +2,40 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.53.0] -- 2026-04-21
+
+### Added: `--summary-tail N` flag to control end-of-run trace tail size
+
+The end-of-run registry-trace summary (introduced in v0.51) and the JSON summary line (v0.52) both defaulted to printing the last 20 trace lines. Users debugging a 200-op registry sweep wanted more; users running CI grep loops wanted less. New global flag `--summary-tail N` lets the caller pick any non-negative integer.
+
+```
+.\run.ps1 os clean-explorer-mru --verbose --summary-tail 50    # show last 50
+.\run.ps1 os flp --verbose --summary-tail 0                    # totals only
+.\run.ps1 os clean --bucket B --summary-json --summary-tail 5  # tiny CI line
+```
+
+`0` is honoured (totals + JSON counts only, empty `tail[]` array). Negative or non-numeric values are ignored and the default of 20 is kept.
+
+#### Implementation: `scripts/shared/registry-trace.ps1`
+
+- New `Get-SummaryTailArg -Argv $argv` -- parses six accepted forms (`--summary-tail N`, `-summary-tail N`, `/summary-tail N`, plus `=`-joined variants). Returns `$null` on absent / invalid value so the caller can fall through to the default.
+- New `Remove-SummaryTailArg -Argv $argv` -- strips the flag **and** its value when the value is the next token, defensively leaving non-numeric next tokens alone so we don't accidentally swallow an unrelated arg.
+- `Close-RegistryTrace` gained a `[Nullable[int]]$TailLines` parameter and an env-var fallback `REGTRACE_SUMMARY_TAIL`. Resolution order: explicit `-TailLines` param > env var > module default `$script:_RegTraceTailMax` (20). The resolved value is then passed to **both** `Show-RegistryTraceSummary` (human box) and `Show-RegistryTraceSummaryJsonOutput` (JSON line) so the two stay in sync. Negative values are clamped to 0.
+
+#### Wiring: same dispatcher pattern as `--summary-json`
+
+- `scripts/os/run.ps1` -- after the existing `--summary-json` block: `Get-SummaryTailArg` / `Remove-SummaryTailArg`, then `$env:REGTRACE_SUMMARY_TAIL = "$N"`.
+- `scripts/os/helpers/clean-runner.ps1` -- same block alongside the `-Verbose` and `--summary-json` parsers, so direct `clean-<name>` invocations also work.
+
+The env-var propagation means **zero leaf-helper changes** -- `longpath.ps1` and all 36 `clean-categories\*.ps1` files already call `Close-RegistryTrace`, which now reads `REGTRACE_SUMMARY_TAIL` automatically. Same architectural rationale as v0.52: avoiding 37+ touch points of `[switch]$SummaryTail` boilerplate.
+
+#### Files touched
+
+- `scripts/shared/registry-trace.ps1` -- 2 new functions, `Close-RegistryTrace` updated with `[Nullable[int]]$TailLines` + env-var fallback.
+- `scripts/os/run.ps1` -- 7-line block after the `--summary-json` parser.
+- `scripts/os/helpers/clean-runner.ps1` -- matching 8-line block alongside the `--summary-json` parser.
+- `scripts/version.json` -- `0.52.0` -> `0.53.0`.
+
 ## [v0.52.0] -- 2026-04-21
 
 ### Added: `--summary-json` machine-readable run summary on stdout
