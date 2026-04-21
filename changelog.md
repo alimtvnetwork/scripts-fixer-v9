@@ -2,6 +2,34 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.54.3] -- 2026-04-21
+
+### Added: `--summary-tail-quiet` override flag
+
+Companion to v0.54.0's `--summary-tail-warn`. Suppresses the `[ WARN ]` line for invalid `--summary-tail` values while keeping the silent fallback to default 20. Designed for CI workflows that have `--summary-tail-warn` enabled globally but want to silence noise on specific jobs that legitimately pass placeholders or computed values.
+
+**Behavior matrix** (with invalid `--summary-tail abc`):
+
+| Flags                                       | Output                          |
+| ------------------------------------------- | ------------------------------- |
+| (neither)                                   | silent fallback to 20 (default) |
+| `--summary-tail-warn`                       | `[ WARN ]` + fallback to 20     |
+| `--summary-tail-quiet`                      | silent fallback to 20 (no-op)   |
+| `--summary-tail-warn --summary-tail-quiet`  | silent fallback to 20 (quiet wins) |
+
+**Accepted forms** (case-insensitive): `--summary-tail-quiet`, `-summary-tail-quiet`, `/summary-tail-quiet`.
+
+### Implementation
+
+- **`scripts/shared/registry-trace.ps1`** -- 2 new helpers mirroring the warn-switch pair:
+  - `Test-SummaryTailQuietSwitch` -- detects the flag in `$Argv`
+  - `Remove-SummaryTailQuietSwitch` -- strips it before forwarding to children
+- **`scripts/os/run.ps1`** -- dispatcher resolves `$emitTailWarn = $wantsTailWarn -and -not $wantsTailQuiet` so quiet always wins when both are present
+- **`scripts/os/helpers/clean-runner.ps1`** -- same wiring at the per-category level
+- **Help updated**: new flag entry under REGISTRY TRACE FLAGS plus a "Flag combination matrix" block in `Show-OsHelp`
+
+No breaking changes. Default behavior remains silent.
+
 ## [v0.54.2] -- 2026-04-21
 
 ### Added: GitHub Actions CI example in `os --help`

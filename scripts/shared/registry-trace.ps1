@@ -622,6 +622,48 @@ function Remove-SummaryTailWarnSwitch {
     return ,$out.ToArray()
 }
 
+function Test-SummaryTailQuietSwitch {
+    <#
+    .SYNOPSIS
+        Recognise --summary-tail-quiet / -summary-tail-quiet /
+        /summary-tail-quiet in $Argv. When BOTH --summary-tail-warn and
+        --summary-tail-quiet are passed, quiet wins -- the [ WARN ] line is
+        suppressed but the silent fallback to default 20 still happens.
+
+    .DESCRIPTION
+        Use case: a CI workflow has --summary-tail-warn baked in globally,
+        but one specific job legitimately passes a placeholder/computed
+        value that may be empty. Adding --summary-tail-quiet to that one job
+        keeps the global warn behavior elsewhere while silencing the
+        expected noise locally. Acts as a no-op when --summary-tail-warn is
+        not set (the default behavior is already silent).
+    #>
+    param([string[]]$Argv)
+    if ($null -eq $Argv) { return $false }
+    foreach ($a in $Argv) {
+        $t = "$a".Trim().ToLower()
+        if ($t -in @("--summary-tail-quiet","-summary-tail-quiet","/summary-tail-quiet")) { return $true }
+    }
+    return $false
+}
+
+function Remove-SummaryTailQuietSwitch {
+    <#
+    .SYNOPSIS
+        Strip --summary-tail-quiet tokens from $Argv before forwarding to
+        child scripts that would reject the unknown switch.
+    #>
+    param([string[]]$Argv)
+    if ($null -eq $Argv) { return @() }
+    $out = New-Object System.Collections.ArrayList
+    foreach ($a in $Argv) {
+        $t = "$a".Trim().ToLower()
+        if ($t -in @("--summary-tail-quiet","-summary-tail-quiet","/summary-tail-quiet")) { continue }
+        [void]$out.Add($a)
+    }
+    return ,$out.ToArray()
+}
+
 function Write-SummaryTailWarning {
     <#
     .SYNOPSIS

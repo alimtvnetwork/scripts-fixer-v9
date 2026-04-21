@@ -47,13 +47,20 @@ if (Test-SummaryJsonSwitch -Argv $Rest) {
 # (default kept). Strip both the flag and its value from $Rest.
 # --summary-tail-warn (opt-in): when set, an invalid --summary-tail value
 # triggers a yellow [ WARN ] line instead of being silently dropped.
-$wantsTailWarn = Test-SummaryTailWarnSwitch -Argv $Rest
-if ($wantsTailWarn) { $Rest = Remove-SummaryTailWarnSwitch -Argv $Rest }
+# --summary-tail-quiet (override): when set ALONGSIDE --summary-tail-warn,
+# suppresses the warning while keeping the silent fallback. No-op when warn
+# is absent (default behavior is already silent).
+$wantsTailWarn  = Test-SummaryTailWarnSwitch  -Argv $Rest
+$wantsTailQuiet = Test-SummaryTailQuietSwitch -Argv $Rest
+if ($wantsTailWarn)  { $Rest = Remove-SummaryTailWarnSwitch  -Argv $Rest }
+if ($wantsTailQuiet) { $Rest = Remove-SummaryTailQuietSwitch -Argv $Rest }
+# Quiet wins when both flags are present.
+$emitTailWarn = $wantsTailWarn -and -not $wantsTailQuiet
 $summaryTailArg = Get-SummaryTailArg -Argv $Rest
 if ($null -ne $summaryTailArg) {
     $Rest = Remove-SummaryTailArg -Argv $Rest
     $env:REGTRACE_SUMMARY_TAIL = "$summaryTailArg"
-} elseif ($wantsTailWarn) {
+} elseif ($emitTailWarn) {
     # Invalid (or absent). Only warn if the flag was actually present.
     $tailRaw = Get-SummaryTailRaw -Argv $Rest
     if ($null -ne $tailRaw -and $tailRaw.Present) {
@@ -195,6 +202,10 @@ function Show-OsHelp {
     Write-Host "    --summary-tail-warn     Opt-in: print [ WARN ] when --summary-tail value is invalid" -ForegroundColor DarkGray
     Write-Host "                            (default behavior is silent fallback to 20 -- this flag" -ForegroundColor DarkGray
     Write-Host "                             surfaces typos so they don't get lost in CI logs)" -ForegroundColor DarkGray
+    Write-Host "    --summary-tail-quiet    Override: suppress the [ WARN ] from --summary-tail-warn" -ForegroundColor DarkGray
+    Write-Host "                            while keeping the silent fallback. Use when one job in a" -ForegroundColor DarkGray
+    Write-Host "                            warn-enabled CI workflow legitimately passes a placeholder." -ForegroundColor DarkGray
+    Write-Host "                            No-op without --summary-tail-warn (default is already silent)." -ForegroundColor DarkGray
     Write-Host ""
     Write-Host "    VALID vs INVALID examples:" -ForegroundColor Cyan
     Write-Host "      VALID:  --summary-tail 50      -> 50 lines shown" -ForegroundColor DarkGray
@@ -210,6 +221,13 @@ function Show-OsHelp {
     Write-Host ""
     Write-Host "    Add --summary-tail-warn to any of the INVALID examples to see a yellow [ WARN ]" -ForegroundColor DarkGray
     Write-Host "    line explaining exactly why the value was dropped (negative / non-numeric / etc)." -ForegroundColor DarkGray
+    Write-Host "    Add --summary-tail-quiet to silence that warning again (quiet wins over warn)." -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "    Flag combination matrix (--summary-tail abc --summary-tail-...):" -ForegroundColor Cyan
+    Write-Host "      neither flag                  -> silent fallback to 20  (default)" -ForegroundColor DarkGray
+    Write-Host "      --summary-tail-warn           -> [ WARN ] printed + fallback to 20" -ForegroundColor DarkGray
+    Write-Host "      --summary-tail-quiet          -> silent fallback to 20  (no-op alone)" -ForegroundColor DarkGray
+    Write-Host "      both warn AND quiet           -> silent fallback to 20  (quiet wins)" -ForegroundColor DarkGray
     Write-Host ""
     Write-Host "    Parity: human summary line count == JSON tail[] length (same formula)" -ForegroundColor DarkGray
     Write-Host "      - 0 ops recorded:    human shows 'no operations' notice; JSON tail=[]    (both 0)" -ForegroundColor DarkGray
