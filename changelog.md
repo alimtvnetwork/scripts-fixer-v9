@@ -2,6 +2,74 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.47.1] -- 2026-04-21
+
+### Fixed: replace broken `remote.starship` URL with a pinned local wrapper
+
+The `https://starship.rs/install.ps1` endpoint has been 404 since v0.46.2 (Starship publishes only `install.sh`; on Windows users are directed to winget / scoop / cargo). v0.46.2 worked around this by leaving `remote.starship.sha256` empty and emitting an `_sha256_note`. v0.47.1 replaces the dead URL entirely with a curated local wrapper that is checked into this repo, SHA256-pinned, and routed through the same CODE RED integrity guard as every other remote installer.
+
+### Files added
+
+- `scripts/shared/remote-installers/starship.ps1` -- 5,865-byte wrapper. Resolution order: `winget install --id Starship.Starship -e` -> `scoop install starship` -> `cargo install starship --locked`. Each attempt logs the exact CLI it ran and the exact reason it skipped. Refreshes `$env:Path` from Machine + User scopes after install so the new `starship.exe` is discoverable in the same session. SHA256 (UTF-8 bytes of body, LF line endings): `1315b9372510257bad6c5b823c4101f71abd0f4a4d8004f5f15b35076e7a9959`.
+
+### Files updated
+
+- `scripts/shared/install-keywords.json`
+  - `remote.starship` -- removed `url` + `_sha256_note`; added `path: "scripts/shared/remote-installers/starship.ps1"` + the pinned `sha256` above.
+  - `_pinLastVerified` -- bumped `2026-04-20` -> `2026-04-21`.
+  - Added `_pathComment` documenting the new `path` field semantics.
+  - Updated `_remoteComment` to mention `path` as an alternative to `url` (v0.47.1+).
+  - Aliases `install starship`, `install ss`, `install starship-prompt` now all resolve to the local wrapper. No keyword changes required.
+- `run.ps1`
+  - **Resolver** (`Resolve-InstallKeywords`): a `remote.<key>` entry may now supply `path` (repo-relative) **OR** `url` (HTTP). At least one is required; SHA256 pinning behaves identically for both. The resolved `LocalPath` is carried on the entry alongside `Url`.
+  - **Dispatcher** (remote branch): when `LocalPath` is set, the body is read via `Get-Content -LiteralPath -Raw` instead of `Invoke-RestMethod`. The SHA256 verification, `Invoke-Expression`, and `[ FAIL ]` reporting paths are otherwise byte-for-byte unchanged. The status banner now prints `Source : local: <path>` and `Command: Get-Content '<path>' -Raw | iex` for path-based remotes (vs. `Source : <url>` / `Command: irm <url> | iex` for URL-based ones).
+  - **Doctor `--self-check` section (d)**: `path`-based remotes are validated by `Test-Path -LiteralPath <abs>` instead of an HTTP `HEAD` probe. The detail column shows `local-OK` (green) or `local file MISSING: <abs>` (red). URL-based remotes still get the existing one-shot `HEAD` probe with HTTP status code reporting.
+- `scripts/version.json` -- bumped `0.47.0` -> `0.47.1` (patch: bug fix only, no new surface).
+- `changelog.md` -- this entry.
+
+### Why this matters
+
+Before v0.47.1, the only entry in `remote.*` without a SHA256 pin was `starship`, and the dispatcher would: (1) attempt `Invoke-RestMethod https://starship.rs/install.ps1`, (2) catch the HTTP 404, (3) print a generic `[ FAIL ]`. The user had no path forward without manually running winget. After v0.47.1: `install starship` deterministically runs the curated wrapper, the wrapper's hash is locked at the version committed in this repo, and any tampering with the wrapper file (intentional or otherwise) trips the same `SHA256 mismatch -- refusing to execute unverified body` guard that protects the three external installers.
+
+### Tamper-test confidence
+
+The local wrapper is byte-identical to the body the dispatcher will hash because it is read from disk with `-Raw` (no line-ending normalization on a file that is already LF-only). If you edit the wrapper without rebumping the pin, `install starship` immediately refuses to run with the exact expected vs. actual hex, the file path on disk, and the JSON pin source. To rebump after an intentional edit:
+
+```powershell
+$body = Get-Content -LiteralPath scripts/shared/remote-installers/starship.ps1 -Raw
+$bytes = [System.Text.Encoding]::UTF8.GetBytes($body)
+$hash  = [System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes)
+($hash | ForEach-Object { $_.ToString("x2") }) -join ""
+# Paste the lowercase hex into install-keywords.json -> remote.starship.sha256, then bump version.json patch.
+```
+
+### Verification on Windows
+
+```powershell
+.\run.ps1 install starship
+# expect: ----- Remote: starship -----
+#         Source : local: C:\...\scripts\shared\remote-installers\starship.ps1
+#         Command: Get-Content '...' -Raw | iex
+#         SHA256 : 1315b9372510257bad6c5b823c4101f71abd0f4a4d8004f5f15b35076e7a9959 (pinned -- verified before exec)
+#         [  OK  ] SHA256 verified (1315b937...)
+#         [ STEP ] winget install --id Starship.Starship -e --source winget ...
+#         [  OK  ] Starship installed: C:\Users\...\AppData\Local\Microsoft\WinGet\Packages\...\starship.exe
+#         [  OK  ] Remote installer 'starship' completed.
+
+.\run.ps1 install ss            # alias -- identical output
+.\run.ps1 install starship-prompt   # alias -- identical output
+
+.\run.ps1 doctor --self-check
+# expect: section (d) -- 'remote:starship local-OK' (green); 3 of 4 remote rows still HTTP-probed; 0 FAILs.
+```
+
+### Negative tests
+
+1. **Tamper test**: append a single space to `scripts/shared/remote-installers/starship.ps1`, then `.\run.ps1 install starship` -> expect `[ FAIL ] SHA256 mismatch -- refusing to execute unverified body. Expected: 1315b937...  Actual: <new hash>  Source: local: <path>  Pin source: install-keywords.json -> remote.starship.sha256`. Revert the edit -> green again.
+2. **Missing-file test**: rename the wrapper to `.bak`, run `.\run.ps1 install starship` -> expect `[ FAIL ] Remote installer 'starship' failed. ... Reason: Local wrapper not found on disk. Path: <abs>  (referenced by install-keywords.json -> remote.starship.path)`. Doctor section (d) prints `remote:starship -> local file MISSING: <abs>` for every keyword that resolves to it (`starship`, `ss`, `starship-prompt`).
+3. **Already-installed test**: with `starship.exe` already on PATH, the wrapper short-circuits to `[ SKIP ] starship is already installed at: <path>` + version line, exit 0.
+
+
 ## [v0.47.0] -- 2026-04-20
 
 ### Added: OS Clean Phase 6 -- 5 more dev-tool cache categories (Bucket F, total = 54)
