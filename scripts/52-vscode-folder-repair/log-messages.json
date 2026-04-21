@@ -1,0 +1,51 @@
+{
+  "scriptName": "VS Code Folder-Only Context Menu Repair",
+  "description": "Removes file/background context menu entries and keeps only the folder entry, then restarts Explorer.",
+  "messages": {
+    "scriptDisabled": "Folder-only repair is disabled in config.",
+    "notAdmin": "This script must be run as Administrator.",
+    "checkingAdmin": "Checking Administrator privileges...",
+    "currentUser": "Current user: {name}",
+    "isAdministrator": "Is Administrator: {value}",
+    "detectInstall": "Detecting VS Code installation type...",
+    "usingExe": "Using executable: {path}",
+    "exeNotFound": "{label}: executable not found -- skipping",
+    "editionBorderLine": "  +----------------------------------------------",
+    "editionLabel": "  |  Edition: {label}",
+    "removingTarget": "Removing context menu entry on target '{target}': {path}",
+    "targetMissing": "Target '{target}' already absent: {path}",
+    "removeFailed": "FAILED to remove '{target}' at {path} -- {error}",
+    "removed": "Removed '{target}' at {path}",
+    "ensuringTarget": "Ensuring folder entry on target '{target}': {path}",
+    "ensureSet": "Ensured '{target}' = '{label}' at {path}",
+    "ensureFailed": "FAILED to ensure '{target}' at {path} -- {error}",
+    "verify": "Verifying final state...",
+    "verifyPresent": "[present] {target} -- {path}",
+    "verifyAbsent":  "[absent ] {target} -- {path}",
+    "expectedAbsent":  "Expected absent and is absent: {target} -- {path}",
+    "unexpectedPresent": "Expected absent but PRESENT: {target} -- {path}",
+    "expectedPresent": "Expected present and is present: {target} -- {path}",
+    "unexpectedAbsent": "Expected present but ABSENT: {target} -- {path}",
+    "restartingExplorer": "Restarting explorer.exe so context menu refreshes...",
+    "explorerStopped": "explorer.exe stopped.",
+    "explorerStarted": "explorer.exe started.",
+    "explorerSkipped": "Explorer restart skipped (restartExplorer=false).",
+    "explorerFailed": "Explorer restart failed: {error}",
+    "done": "Folder-only context menu repair completed successfully.",
+    "completedWithWarnings": "Repair completed with warnings -- check output above.",
+    "unknownEdition": "Unknown edition '{name}' in enabledEditions -- skipping",
+    "installTypePref": "Installation type preference: {type}",
+    "enabledEditions": "Enabled editions: {editions}"
+  },
+  "help": {
+    "commands": {
+      "(default)": "Repair VS Code context menu so it appears ONLY on folders, then restart Explorer",
+      "no-restart": "Do the repair but do NOT restart explorer.exe"
+    },
+    "examples": [
+      ".\\run.ps1",
+      ".\\run.ps1 no-restart",
+      ".\\run.ps1 -Help"
+    ]
+  }
+}
