@@ -2,6 +2,16 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.53.1] -- 2026-04-21
+
+### Added: `--summary-tail` usage documentation
+
+- Added comprehensive help section to `scripts/os/run.ps1` `Show-OsHelp` documenting the `--summary-tail N` flag.
+- Documented all six accepted flag formats: `--summary-tail N`, `--summary-tail=N`, `-summary-tail N`, `-summary-tail:N`, `-SummaryTail N` (PascalCase), `--tail-lines N`.
+- Explained the special value `N=0` ("totals only" -- no tail lines, just OK/FAIL/SKIP counts).
+- Documented companion flags `-Verbose` and `--summary-json` in the same "REGISTRY TRACE FLAGS" help section.
+- Extended comment-based help in `scripts/shared/registry-trace.ps1` with detailed `.DESCRIPTION` covering activation, log file naming, end-of-run summary behavior, `--summary-tail` formats, and `--summary-json` machine-readable output.
+
 ## [v0.53.0] -- 2026-04-21
 
 ### Added: `--summary-tail N` flag to control end-of-run trace tail size

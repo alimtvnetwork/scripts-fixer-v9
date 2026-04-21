@@ -169,6 +169,13 @@ function Show-OsHelp {
     Write-Host "    require typed 'yes' on first run. Persisted in .resolved/os-clean-consent.json." -ForegroundColor DarkGray
     Write-Host "    Use --yes to auto-consent, --dry-run to explore safely without consent." -ForegroundColor DarkGray
     Write-Host ""
+    Write-Host "  REGISTRY TRACE FLAGS (global, work with any action that touches registry)" -ForegroundColor Cyan
+    Write-Host "    -Verbose                Enable per-operation registry trace logging to .logs/" -ForegroundColor DarkGray
+    Write-Host "    --summary-tail <N>      End-of-run summary: show last N trace lines (default 20)" -ForegroundColor DarkGray
+    Write-Host "                            Forms: --summary-tail 50, --summary-tail=50, -summary-tail 50, -summary-tail:50" -ForegroundColor DarkGray
+    Write-Host "                            Special: N=0 shows totals only (no tail lines)" -ForegroundColor DarkGray
+    Write-Host "    --summary-json          Emit machine-readable JSON summary to stdout (for CI/piping)" -ForegroundColor DarkGray
+    Write-Host ""
 }
 
 $normalizedAction = ""
