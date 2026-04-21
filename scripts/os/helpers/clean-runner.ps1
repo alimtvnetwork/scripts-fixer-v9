@@ -49,6 +49,16 @@ if (Test-Path -LiteralPath $verboseTracePath) {
         $env:REGTRACE_SUMMARY_JSON = "1"
         Set-RegistryTraceSummaryJson -Enabled $true
     }
+
+    # --summary-tail N: control how many recent trace lines the end-of-run
+    # summary prints (default 20, 0 = totals only). Strip both the flag and
+    # its value from $Argv before forwarding; propagate via env so the
+    # spawned category helper's Close-RegistryTrace honours it.
+    $summaryTailArg = Get-SummaryTailArg -Argv $Argv
+    if ($null -ne $summaryTailArg) {
+        $Argv = Remove-SummaryTailArg -Argv $Argv
+        $env:REGTRACE_SUMMARY_TAIL = "$summaryTailArg"
+    }
 }
 
 $helperPath = Join-Path $categoriesDir "$Category.ps1"
