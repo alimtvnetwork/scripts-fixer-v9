@@ -136,10 +136,95 @@ function Invoke-Install {
 
     $iconPath        = $Config.iconPath
     $cmdTemplate     = $Config.shell.commandTemplate
+    $bypassTemplate  = $Config.shell.bypassCommandTemplate
     $maxLen          = [int]$Config.categorySubkeyMaxLen
     $isAllSuccessful = $true
     $totalLeaves     = 0
     $scopeCount      = 0
+
+    # -- Confirmation settings (default: enabled, 5s, with Shift-bypass twin)
+    $confirmCfg          = $Config.confirmBeforeLaunch
+    $isConfirmEnabled    = $true
+    $countdownSeconds    = 5
+    $emitBypassLeaves    = $true
+    $bypassLabelSuffix   = " (no prompt -- Shift)"
+    $bypassSubkeySuffix  = "-NoPrompt"
+    if ($null -ne $confirmCfg) {
+        if ($null -ne $confirmCfg.enabled)            { $isConfirmEnabled    = [bool]$confirmCfg.enabled }
+        if ($null -ne $confirmCfg.countdownSeconds)   { $countdownSeconds    = [int]$confirmCfg.countdownSeconds }
+        if ($null -ne $confirmCfg.emitBypassLeaves)   { $emitBypassLeaves    = [bool]$confirmCfg.emitBypassLeaves }
+        if ($null -ne $confirmCfg.bypassLabelSuffix)  { $bypassLabelSuffix   = [string]$confirmCfg.bypassLabelSuffix }
+        if ($null -ne $confirmCfg.bypassSubkeySuffix) { $bypassSubkeySuffix  = [string]$confirmCfg.bypassSubkeySuffix }
+    }
+
+    # -- Verify the reusable helper exists (CODE RED: log exact path on miss)
+    $confirmHelperPath = Join-Path $RepoRoot "scripts\shared\confirm-launch.ps1"
+    $isHelperPresent = Test-Path -LiteralPath $confirmHelperPath
+    if ($isConfirmEnabled -and -not $isHelperPresent) {
+        Write-Log ("Confirm-launch helper missing -- expected at: $confirmHelperPath. Falling back to direct invocation (no prompt) for this install.") -Level "warn"
+        $isConfirmEnabled = $false
+        $emitBypassLeaves = $false
+    }
+
+    # Local helper -- emit a leaf for one item, optionally with a Shift-bypass twin.
+    function Write-ScriptLeafPair {
+        param(
+            [string]$ParentForLeaves,
+            $Item,
+            [string]$LeafBaseLabel
+        )
+
+        $leafSub = ConvertTo-SafeSubkey -Name $Item.Id -MaxLen $maxLen
+        $okPair  = $true
+
+        # 1. Default leaf (with confirmation prompt if enabled)
+        $tplDefault = if ($isConfirmEnabled) { $cmdTemplate } else {
+            # Direct, no-prompt fallback if the helper is missing
+            "`"$shellExe`" -NoExit -ExecutionPolicy Bypass -Command `"Set-Location -LiteralPath '$RepoRoot'; & '.\run.ps1' -I $($Item.Id)`""
+        }
+        $cmdDefault = ($tplDefault -replace '\{shellExe\}',  $shellExe) `
+                                   -replace '\{repoRoot\}',  $RepoRoot `
+                                   -replace '\{scriptId\}',  $Item.Id  `
+                                   -replace '\{leafLabel\}', $LeafBaseLabel `
+                                   -replace '\{countdown\}', $countdownSeconds
+
+        Write-Log ((($LogMsgs.messages.writingLeaf -replace '\{id\}', $Item.Id) -replace '\{folder\}', $Item.Folder) -replace '\{path\}', (ConvertTo-RegExePath "$ParentForLeaves\$leafSub")) -Level "info"
+        Write-Log ($LogMsgs.messages.leafCommand -replace '\{command\}', $cmdDefault) -Level "info"
+        $okDefault = New-LeafEntry `
+            -ParentPsPath $ParentForLeaves `
+            -LeafSubkey   $leafSub `
+            -Label        $LeafBaseLabel `
+            -IconPath     $shellExe `
+            -CommandLine  $cmdDefault `
+            -Extended     $false `
+            -LogMsgs      $LogMsgs
+        if (-not $okDefault) { $okPair = $false }
+
+        # 2. Shift-only bypass twin (Extended verb attribute)
+        if ($isConfirmEnabled -and $emitBypassLeaves) {
+            $bypassSub   = ConvertTo-SafeSubkey -Name ($Item.Id + $bypassSubkeySuffix) -MaxLen $maxLen
+            $bypassLabel = $LeafBaseLabel + $bypassLabelSuffix
+            $cmdBypass = ($bypassTemplate -replace '\{shellExe\}',  $shellExe) `
+                                          -replace '\{repoRoot\}',  $RepoRoot `
+                                          -replace '\{scriptId\}',  $Item.Id  `
+                                          -replace '\{leafLabel\}', $LeafBaseLabel `
+                                          -replace '\{countdown\}', $countdownSeconds
+
+            Write-Log ((($LogMsgs.messages.writingLeaf -replace '\{id\}', ($Item.Id + " [bypass]")) -replace '\{folder\}', $Item.Folder) -replace '\{path\}', (ConvertTo-RegExePath "$ParentForLeaves\$bypassSub")) -Level "info"
+            Write-Log ($LogMsgs.messages.leafCommand -replace '\{command\}', $cmdBypass) -Level "info"
+            $okBypass = New-LeafEntry `
+                -ParentPsPath $ParentForLeaves `
+                -LeafSubkey   $bypassSub `
+                -Label        $bypassLabel `
+                -IconPath     $shellExe `
+                -CommandLine  $cmdBypass `
+                -Extended     $true `
+                -LogMsgs      $LogMsgs
+            if (-not $okBypass) { $okPair = $false }
+        }
+
+        return $okPair
+    }
 
     foreach ($scopeName in $Config.scopes.PSObject.Properties.Name) {
         $scope = $Config.scopes.$scopeName
@@ -148,14 +233,11 @@ function Invoke-Install {
 
         if (-not $isScopeEnabled) {
             Write-Log ($LogMsgs.messages.scopeDisabled -replace '\{scope\}', $scopeName) -Level "warn"
-            # Clean up any prior install for this scope
             $null = Remove-MenuTree -TopKey $topKey -LogMsgs $LogMsgs
             continue
         }
 
         Write-Log (($LogMsgs.messages.scopeStart -replace '\{scope\}', $scopeName) -replace '\{topKey\}', (ConvertTo-RegExePath $topKey)) -Level "info"
-
-        # Idempotent: wipe any pre-existing tree first
         $null = Remove-MenuTree -TopKey $topKey -LogMsgs $LogMsgs
 
         # 1. Top-level cascading parent
@@ -168,36 +250,22 @@ function Invoke-Install {
             -LogMsgs       $LogMsgs
         if (-not $ok) { $isAllSuccessful = $false; continue }
 
-        # 2. Categories + leaves
+        # 2. Categories + leaves (now via Write-ScriptLeafPair)
         foreach ($catGroup in $categorized) {
             $items = @($catGroup.Items)
             $isRootGroup = ($catGroup.Category -eq "_root")
 
             if ($isRootGroup) {
-                # Singletons go directly under topKey\shell\<id>
                 $parentForLeaves = "$topKey\shell"
                 foreach ($item in $items) {
-                    $leafLabel  = $item.Label
-                    $cmdLine    = ($cmdTemplate -replace '\{shellExe\}', $shellExe) `
-                                                -replace '\{repoRoot\}', $repoRoot `
-                                                -replace '\{scriptId\}', $item.Id
-                    $leafSub = ConvertTo-SafeSubkey -Name $item.Id -MaxLen $maxLen
-                    Write-Log ((($LogMsgs.messages.writingLeaf -replace '\{id\}', $item.Id) -replace '\{folder\}', $item.Folder) -replace '\{path\}', "$parentForLeaves\$leafSub") -Level "info"
-                    Write-Log ($LogMsgs.messages.leafCommand -replace '\{command\}', $cmdLine) -Level "info"
-                    $okLeaf = New-LeafEntry `
-                        -ParentPsPath $parentForLeaves `
-                        -LeafSubkey   $leafSub `
-                        -Label        $leafLabel `
-                        -IconPath     $shellExe `
-                        -CommandLine  $cmdLine `
-                        -LogMsgs      $LogMsgs
-                    if (-not $okLeaf) { $isAllSuccessful = $false } else { $totalLeaves++ }
+                    $okPair = Write-ScriptLeafPair -ParentForLeaves $parentForLeaves -Item $item -LeafBaseLabel $item.Label
+                    if (-not $okPair) { $isAllSuccessful = $false } else { $totalLeaves++ }
                 }
                 continue
             }
 
-            $catSafe   = ConvertTo-SafeSubkey -Name $catGroup.Category -MaxLen $maxLen
-            $catKey    = "$topKey\shell\$catSafe"
+            $catSafe = ConvertTo-SafeSubkey -Name $catGroup.Category -MaxLen $maxLen
+            $catKey  = "$topKey\shell\$catSafe"
             Write-Log (($LogMsgs.messages.writingCategory -replace '\{category\}', $catGroup.Category) -replace '\{path\}', (ConvertTo-RegExePath $catKey)) -Level "info"
 
             $okCat = New-CascadingParent `
@@ -210,20 +278,8 @@ function Invoke-Install {
 
             $parentForLeaves = "$catKey\shell"
             foreach ($item in $items) {
-                $leafSub  = ConvertTo-SafeSubkey -Name $item.Id -MaxLen $maxLen
-                $cmdLine  = ($cmdTemplate -replace '\{shellExe\}', $shellExe) `
-                                          -replace '\{repoRoot\}', $repoRoot `
-                                          -replace '\{scriptId\}', $item.Id
-                Write-Log ((($LogMsgs.messages.writingLeaf -replace '\{id\}', $item.Id) -replace '\{folder\}', $item.Folder) -replace '\{path\}', (ConvertTo-RegExePath "$parentForLeaves\$leafSub")) -Level "info"
-                Write-Log ($LogMsgs.messages.leafCommand -replace '\{command\}', $cmdLine) -Level "info"
-                $okLeaf = New-LeafEntry `
-                    -ParentPsPath $parentForLeaves `
-                    -LeafSubkey   $leafSub `
-                    -Label        $item.Label `
-                    -IconPath     $shellExe `
-                    -CommandLine  $cmdLine `
-                    -LogMsgs      $LogMsgs
-                if (-not $okLeaf) { $isAllSuccessful = $false } else { $totalLeaves++ }
+                $okPair = Write-ScriptLeafPair -ParentForLeaves $parentForLeaves -Item $item -LeafBaseLabel $item.Label
+                if (-not $okPair) { $isAllSuccessful = $false } else { $totalLeaves++ }
             }
         }
 
