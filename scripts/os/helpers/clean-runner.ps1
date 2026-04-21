@@ -56,13 +56,18 @@ if (Test-Path -LiteralPath $verboseTracePath) {
     # spawned category helper's Close-RegistryTrace honours it.
     # --summary-tail-warn (opt-in): emit a [ WARN ] when an invalid value
     # is dropped, instead of silently falling back to default 20.
-    $wantsTailWarn = Test-SummaryTailWarnSwitch -Argv $Argv
-    if ($wantsTailWarn) { $Argv = Remove-SummaryTailWarnSwitch -Argv $Argv }
+    # --summary-tail-quiet (override): suppress that warning while keeping
+    # the silent fallback. No-op without --summary-tail-warn.
+    $wantsTailWarn  = Test-SummaryTailWarnSwitch  -Argv $Argv
+    $wantsTailQuiet = Test-SummaryTailQuietSwitch -Argv $Argv
+    if ($wantsTailWarn)  { $Argv = Remove-SummaryTailWarnSwitch  -Argv $Argv }
+    if ($wantsTailQuiet) { $Argv = Remove-SummaryTailQuietSwitch -Argv $Argv }
+    $emitTailWarn = $wantsTailWarn -and -not $wantsTailQuiet
     $summaryTailArg = Get-SummaryTailArg -Argv $Argv
     if ($null -ne $summaryTailArg) {
         $Argv = Remove-SummaryTailArg -Argv $Argv
         $env:REGTRACE_SUMMARY_TAIL = "$summaryTailArg"
-    } elseif ($wantsTailWarn) {
+    } elseif ($emitTailWarn) {
         $tailRaw = Get-SummaryTailRaw -Argv $Argv
         if ($null -ne $tailRaw -and $tailRaw.Present) {
             Write-SummaryTailWarning -RawInfo $tailRaw

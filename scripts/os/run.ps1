@@ -47,13 +47,20 @@ if (Test-SummaryJsonSwitch -Argv $Rest) {
 # (default kept). Strip both the flag and its value from $Rest.
 # --summary-tail-warn (opt-in): when set, an invalid --summary-tail value
 # triggers a yellow [ WARN ] line instead of being silently dropped.
-$wantsTailWarn = Test-SummaryTailWarnSwitch -Argv $Rest
-if ($wantsTailWarn) { $Rest = Remove-SummaryTailWarnSwitch -Argv $Rest }
+# --summary-tail-quiet (override): when set ALONGSIDE --summary-tail-warn,
+# suppresses the warning while keeping the silent fallback. No-op when warn
+# is absent (default behavior is already silent).
+$wantsTailWarn  = Test-SummaryTailWarnSwitch  -Argv $Rest
+$wantsTailQuiet = Test-SummaryTailQuietSwitch -Argv $Rest
+if ($wantsTailWarn)  { $Rest = Remove-SummaryTailWarnSwitch  -Argv $Rest }
+if ($wantsTailQuiet) { $Rest = Remove-SummaryTailQuietSwitch -Argv $Rest }
+# Quiet wins when both flags are present.
+$emitTailWarn = $wantsTailWarn -and -not $wantsTailQuiet
 $summaryTailArg = Get-SummaryTailArg -Argv $Rest
 if ($null -ne $summaryTailArg) {
     $Rest = Remove-SummaryTailArg -Argv $Rest
     $env:REGTRACE_SUMMARY_TAIL = "$summaryTailArg"
-} elseif ($wantsTailWarn) {
+} elseif ($emitTailWarn) {
     # Invalid (or absent). Only warn if the flag was actually present.
     $tailRaw = Get-SummaryTailRaw -Argv $Rest
     if ($null -ne $tailRaw -and $tailRaw.Present) {
