@@ -179,7 +179,9 @@ function Show-OsHelp {
     Write-Host "    Parity: human summary line count == JSON tail[] length (same formula)" -ForegroundColor DarkGray
     Write-Host "      - 0 ops recorded:    human shows 'no operations' notice; JSON tail=[]    (both 0)" -ForegroundColor DarkGray
     Write-Host "      - tail > buffer:     buffer is capped at 20; both clamp to min(N, buffer)" -ForegroundColor DarkGray
-    Write-Host "      - invalid/negative N: default of 20 applied to both outputs" -ForegroundColor DarkGray
+    Write-Host "      - --summary-tail -1: invalid; silently falls back to default 20 (both outputs)" -ForegroundColor DarkGray
+    Write-Host "      - --summary-tail abc: invalid; silently falls back to default 20 (both outputs)" -ForegroundColor DarkGray
+    Write-Host "      - --summary-tail 0:  valid; 'totals only' mode -- 0 lines, both outputs" -ForegroundColor DarkGray
     Write-Host ""
 }
 
