@@ -76,8 +76,27 @@
                     `tailMax=20` reflects the buffer cap (not the request).
             Parity: both show min(request, buffer). MATCH.
 
-        Edge case 3 -- negative or non-numeric --summary-tail value:
-            Treated as invalid; default of 20 is used by both outputs.
+        Edge case 3 -- invalid --summary-tail value (negative or non-numeric):
+            Both `--summary-tail -1` and `--summary-tail abc` are treated as
+            invalid by Get-SummaryTailArg, which returns $null. The dispatcher
+            then SKIPS setting REGTRACE_SUMMARY_TAIL entirely (env var stays
+            unset). Close-RegistryTrace's resolution chain falls through:
+                explicit -TailLines param  -> not provided
+                REGTRACE_SUMMARY_TAIL env  -> empty / unset
+                module default             -> $script:_RegTraceTailMax (20)
+            Final value: 20 lines for BOTH the human summary and the JSON
+            `tail[]` array. No warning is printed -- the invalid arg is
+            silently ignored to avoid breaking pipelines.
+
+            Worked examples:
+                --summary-tail -1   -> 20 (default, both outputs)
+                --summary-tail abc  -> 20 (default, both outputs)
+                --summary-tail 3.5  -> 20 (default; only integers accepted)
+                --summary-tail ""   -> 20 (default; empty value)
+                --summary-tail      -> 20 (default; missing value at end of args)
+                --summary-tail 0    -> 0  (valid; "totals only" mode)
+                --summary-tail 50   -> 50 (valid; clamped to buffer if smaller)
+
 
     CODE RED: every failure entry includes the exact failing registry path +
     the exception message verbatim. Never swallow a path on failure.
