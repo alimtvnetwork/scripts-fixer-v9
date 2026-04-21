@@ -32,6 +32,16 @@ $dryRun = Test-DryRunSwitch -Argv $Argv
 $autoYes = Test-YesSwitch -Argv $Argv
 $days = Get-DaysArg -Argv $Argv -Default 30
 
+# -Verbose: forward to category helpers that opt into registry-trace.
+# Recognised tokens (parsed by Test-VerboseSwitch in registry-trace.ps1):
+#   --verbose | -verbose | /verbose
+$verboseTracePath = Join-Path $sharedDir "registry-trace.ps1"
+$isVerbose = $false
+if (Test-Path -LiteralPath $verboseTracePath) {
+    . $verboseTracePath
+    $isVerbose = Test-VerboseSwitch -Argv $Argv
+}
+
 $helperPath = Join-Path $categoriesDir "$Category.ps1"
 if (-not (Test-Path -LiteralPath $helperPath)) {
     Write-Log "Unknown clean category '$Category'. Helper missing at: ${helperPath}" -Level "fail"
@@ -56,7 +66,7 @@ Write-Host ""
 
 $r = $null
 try {
-    $r = & $helperPath -DryRun:$dryRun -Yes:$autoYes -Days $days
+    $r = & $helperPath -DryRun:$dryRun -Yes:$autoYes -Days $days -Verbose:$isVerbose
     if ($r -is [array]) {
         $r = $r | Where-Object { $_ -is [hashtable] -or $_ -is [System.Collections.Specialized.OrderedDictionary] } | Select-Object -Last 1
     }
