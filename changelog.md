@@ -2,6 +2,41 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.54.4] -- 2026-04-21
+
+### Improved: warning message echoes exact `--summary-tail` token form
+
+The `[ WARN ]` line from `--summary-tail-warn` now quotes the user's verbatim flag token (preserving prefix style, casing, and separator) so it's immediately greppable in the original command line. Especially useful for empty/missing values where there's nothing else to identify the offending arg.
+
+**Before** (v0.54.3):
+```
+[ WARN ] --summary-tail ignored: no value supplied after the flag. Falling back to default 20.
+[ WARN ] --summary-tail ignored: empty value. Falling back to default 20.
+```
+
+**After** (v0.54.4):
+```
+[ WARN ] --summary-tail ignored: flag '--summary-tail=' has an empty value (nothing after the '='). Falling back to default 20.
+[ WARN ] --summary-tail ignored: flag '/summary-tail:' has an empty value (nothing after the ':'). Falling back to default 20.
+[ WARN ] --summary-tail ignored: flag '--Summary-Tail' supplied with no value after it. Falling back to default 20.
+[ WARN ] --summary-tail ignored: '--summary-tail=abc' rejected -- value 'abc' is not numeric. Falling back to default 20.
+```
+
+The hint line below also now lists all 3 separator forms explicitly.
+
+### Bug fix: colon separator (`--summary-tail:50`) now actually parses
+
+The help text in v0.53.5 advertised `--summary-tail:50` as a valid form, but `Get-SummaryTailArg` only recognised `=`. Adding `--summary-tail:50` would silently fall back to default 20 (or trigger a confusing warning). `Get-SummaryTailArg`, `Remove-SummaryTailArg`, and `Get-SummaryTailRaw` now all accept `=` and `:` interchangeably.
+
+### Implementation
+
+- **`scripts/shared/registry-trace.ps1`**:
+  - `Get-SummaryTailArg` -- inline-form loop now iterates over `@("=", ":")` separators
+  - `Remove-SummaryTailArg` -- recognises both `--summary-tail=N` and `--summary-tail:N` for stripping
+  - `Get-SummaryTailRaw` -- returns a new `Token` field with the verbatim user-typed prefix (e.g. `"--summary-tail="`, `"/summary-tail:"`, `"--Summary-Tail"`); `Form` now includes `"colon"`
+  - `Write-SummaryTailWarning` -- form-specific reason text references `$token`; updated hint line shows all three accepted forms side by side
+  - Backward compatible: missing `Token` field falls back to `"--summary-tail"` for older callers
+
 ## [v0.54.3] -- 2026-04-21
 
 ### Added: `--summary-tail-quiet` override flag
