@@ -40,6 +40,11 @@ $script:_RegTraceScript  = $null
 $script:_RegTraceCounts  = @{ OK = 0; FAIL = 0; SKIP = 0 }
 $script:_RegTraceTail    = New-Object System.Collections.Generic.Queue[string]
 $script:_RegTraceTailMax = 20
+# When $true, Close-RegistryTrace also emits a single-line JSON object to
+# stdout (machine-readable summary). Set via Set-RegistryTraceSummaryJson or
+# the env var REGTRACE_SUMMARY_JSON=1 (honoured at print time so a parent
+# dispatcher can flip it on for child invocations).
+$script:_RegTraceSummaryJson = $false
 
 function Initialize-RegistryTrace {
     <#
