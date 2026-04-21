@@ -2,6 +2,79 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.50.0] -- 2026-04-21
+
+### Added: `run.ps1 scan <path>` -- VS Code Project Manager projects.json sync
+
+New top-level dispatcher command that walks a directory tree, discovers project folders, and **upserts** them into the VS Code Project Manager extension's (`alefragnani.project-manager`) `projects.json` file. The command **never opens VS Code** -- it only mutates the JSON file so projects show up in the extension's sidebar on the next VS Code launch / reload.
+
+#### Command surface
+
+```powershell
+.\run.ps1 scan <root-path>                  # walk + upsert (default depth 5)
+.\run.ps1 scan <root-path> --depth 4        # custom recursion depth
+.\run.ps1 scan <root-path> --dry-run        # preview, write nothing
+.\run.ps1 scan <root-path> --json <file>    # override target projects.json (testing)
+.\run.ps1 scan <root-path> --include-hidden # walk into folders starting with '.'
+.\run.ps1 scan --help
+```
+
+If `<root-path>` is omitted, the current working directory is used.
+
+#### New module: `scripts/scan/`
+
+- `run.ps1` -- dispatcher: argument parsing, banner, walk -> upsert -> atomic write -> summary.
+- `config.json` -- `defaultDepth`, `skipDirs` (`.git`, `node_modules`, `vendor`, `dist`, `build`, `target`, `.next`, `.venv`, `venv`, `__pycache__`, `.gradle`, `bin`, `obj`, ...), `markers` (files: `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `composer.json`, `pom.xml`, `Gemfile`, ...; patterns: `*.csproj`, `*.sln`; dirs: `.git`, `.lovable`).
+- `log-messages.json` -- banner, help text, every status string.
+- `helpers/walker.ps1` -- iterative DFS with depth cap. `Test-IsProjectFolder` checks marker files, glob patterns, and marker dirs; `Find-Projects` returns project paths and **does not descend into** a folder once it qualifies (kills nested `node_modules` noise).
+- `helpers/vscode-projects.ps1` -- five exported functions:
+  - `Get-VSCodeProjectsJsonPath` resolves the per-OS path: Windows `%APPDATA%\Code\User\globalStorage\alefragnani.project-manager\projects.json`, macOS `~/Library/Application Support/Code/User/globalStorage/.../projects.json`, Linux `$XDG_CONFIG_HOME/Code/User/.../projects.json` (defaults to `~/.config/Code/...`).
+  - `Initialize-VSCodeProjectsJson` creates the parent directory and seeds the file with `[]` (UTF-8, no BOM) when missing. CODE RED: file/path failures log the exact path via `Write-FileError`.
+  - `Read-VSCodeProjects` parses the JSON; tolerates an empty file; normalises a single-object document into a 1-element array.
+  - `Add-OrUpdateVSCodeProject` upserts in-memory by `rootPath`. **Match key** is `ConvertTo-RootPathKey` (lowercase + trailing-slash strip on Windows; trailing-slash strip only on Unix). Returns `"added"` for new entries; returns `"noop"` when the `rootPath` already exists -- existing `name`, `paths`, `tags`, `enabled`, `profile` are **never overwritten** by `scan` so user aliases survive.
+  - `Save-VSCodeProjects` performs the **atomic write**: serialise -> write to `projects.json.tmp-<pid>-<ticks>` in the same directory -> `Move-Item -Force` over the original. Temp file is removed on any failure; the original is left untouched.
+
+#### Project detection markers
+
+A folder is treated as a project when it contains any of: `.git/`, `package.json`, `pyproject.toml`, `requirements.txt`, `setup.py`, `Cargo.toml`, `go.mod`, `composer.json`, `pom.xml`, `build.gradle`, `build.gradle.kts`, `*.csproj`, `*.sln`, `Gemfile`, `.lovable/`. All markers configurable via `scripts/scan/config.json`.
+
+#### Schema (locked from user-supplied sample)
+
+```json
+{ "name": "...", "rootPath": "...", "paths": [], "tags": [], "enabled": true, "profile": "" }
+```
+
+On insert: `name = folder basename`, all other fields default. On any subsequent run: existing entry is left alone -- `scan` is purely additive for the user-managed fields.
+
+#### Dispatcher wiring (`run.ps1`)
+
+Added `$isBareScanCommand = $normalizedCommand -eq "scan"` next to the existing `$isBarePathCommand`, plus a routing branch that forwards `$Install` (the `ValueFromRemainingArguments` string array) into `scripts/scan/run.ps1`. Behaves identically to the existing `path` / `doctor` / `os` / `git-tools` bare-command branches.
+
+#### Spec + memory
+
+- Spec: `spec/01-vscode-project-manager-sync/readme.md` -- full command surface, schema, atomic-write algorithm, acceptance criteria.
+- Memory: `.lovable/memory/features/vscode-projects-sync.md` -- per-OS target paths, hard rules (match by `rootPath`, atomic writes, never opens VS Code, `git map` with a space is forbidden anywhere), file layout.
+
+#### Hard rules enforced
+
+1. Match key is `rootPath` (case-insensitive on Windows).
+2. `scan` never opens VS Code.
+3. Atomic writes only -- aborted runs cannot corrupt `projects.json`.
+4. Existing entries / fields not added by us are preserved verbatim.
+5. The string `git map` (with a space) appears nowhere in the new code, help, or logs.
+
+#### Out of scope (deferred)
+
+- `gitmap code <alias>` CLI subcommand
+- SQLite storage (user opted for JSON-only)
+- Auto-deriving `tags`
+- Multi-root (`paths`) authoring
+
+#### Files added/changed
+
+- **Added**: `scripts/scan/run.ps1`, `scripts/scan/config.json`, `scripts/scan/log-messages.json`, `scripts/scan/helpers/walker.ps1`, `scripts/scan/helpers/vscode-projects.ps1`, `spec/01-vscode-project-manager-sync/readme.md`, `.lovable/memory/features/vscode-projects-sync.md`
+- **Updated**: `run.ps1` (added `$isBareScanCommand` + routing branch), `scripts/version.json` (0.49.0 -> 0.50.0)
+
 ## [v0.49.0] -- 2026-04-21
 
 ### Added: verbose registry-trace mode for both registry-touching scripts (`os flp` + `os clean-explorer-mru`)
