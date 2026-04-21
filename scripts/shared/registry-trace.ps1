@@ -328,8 +328,16 @@ function Show-RegistryTraceSummary {
 
     .PARAMETER TailLines
         How many recent lines to show. Defaults to 20.
+
+    .PARAMETER Source
+        Origin of the resolved tail value: "param" | "env" | "default".
+        Used to print "effective tail = N (from <source>)" in the header
+        so users can confirm which fallback won.
     #>
-    param([int]$TailLines = 20)
+    param(
+        [int]$TailLines = 20,
+        [string]$Source = "default"
+    )
 
     $counts = Get-RegistryTraceCounts
     $hasTrace = $script:_RegTraceEnabled -and $script:_RegTracePath
@@ -338,6 +346,7 @@ function Show-RegistryTraceSummary {
     Write-Host ""
     Write-Host "  Registry trace summary" -ForegroundColor Cyan
     Write-Host "  ----------------------" -ForegroundColor DarkGray
+    Write-Host ("    effective tail = {0} (from {1})" -f $TailLines, $Source) -ForegroundColor DarkGray
 
     if (-not $hasOps) {
         if ($hasTrace) {
