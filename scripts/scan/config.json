@@ -1,0 +1,52 @@
+{
+  "scan": {
+    "defaultDepth": 5,
+    "includeHidden": false,
+    "skipDirs": [
+      ".git",
+      ".idea",
+      ".vscode",
+      "node_modules",
+      "vendor",
+      "dist",
+      "build",
+      "target",
+      ".next",
+      ".nuxt",
+      ".venv",
+      "venv",
+      "__pycache__",
+      ".pytest_cache",
+      ".gradle",
+      "bin",
+      "obj"
+    ],
+    "markers": {
+      "files": [
+        "package.json",
+        "pyproject.toml",
+        "requirements.txt",
+        "setup.py",
+        "Cargo.toml",
+        "go.mod",
+        "composer.json",
+        "pom.xml",
+        "build.gradle",
+        "build.gradle.kts",
+        "Gemfile"
+      ],
+      "patterns": [
+        "*.csproj",
+        "*.sln"
+      ],
+      "dirs": [
+        ".git",
+        ".lovable"
+      ]
+    }
+  },
+  "vscode": {
+    "extensionId": "alefragnani.project-manager",
+    "fileName": "projects.json"
+  }
+}

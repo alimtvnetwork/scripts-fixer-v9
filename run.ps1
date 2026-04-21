@@ -2171,6 +2171,7 @@ if ($hasCommand) {
     $isBareInstallCommand = $normalizedCommand -eq "install"
     $isBareUpdateCommand  = $normalizedCommand -eq "update" -or $normalizedCommand -eq "choco-update" -or $normalizedCommand -eq "upgrade"
     $isBarePathCommand    = $normalizedCommand -eq "path"
+    $isBareScanCommand    = $normalizedCommand -eq "scan"
     $isBareExportCommand  = $normalizedCommand -eq "export"
     $isBareStatusCommand  = $normalizedCommand -eq "status"
     $isBareDoctorCommand  = $normalizedCommand -eq "doctor"
@@ -2258,7 +2259,17 @@ if ($hasCommand) {
         Show-VersionHeader
         Invoke-PathCommand -Args $Install
         exit 0
-    } elseif ($isBareDoctorCommand) {
+    } elseif ($isBareScanCommand) {
+        Show-VersionHeader
+        $scanScript = Join-Path $RootDir "scripts\scan\run.ps1"
+        $isScanScriptPresent = Test-Path $scanScript
+        if (-not $isScanScriptPresent) {
+            Write-Host "  [ FAIL ] " -ForegroundColor Red -NoNewline
+            Write-Host "Scan dispatcher missing at: $scanScript"
+            exit 1
+        }
+        & $scanScript @Install
+        exit $LASTEXITCODE
         Show-VersionHeader
         # Detect --self-check flag in remaining args
         $isSelfCheck = $false
