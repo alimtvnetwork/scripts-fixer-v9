@@ -2,7 +2,60 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.56.0] -- 2026-04-21
+
+### Added: script 53 -- Script Fixer cascading right-click menu (opt-in)
+
+A new opt-in PowerShell installer that adds a Windows Explorer right-click cascading menu titled **"Script Fixer v{version}"** (currently `Script Fixer v0.56.0`). Each leaf launches an **elevated** PowerShell terminal that runs the chosen script via the project's `run.ps1` dispatcher.
+
+### What it does
+
+- Reads `scripts/registry.json` and **auto-categorizes** every script (Databases, Editors & IDEs, Languages & Runtimes, Containers, Context Menu Fixers, Apps, etc.) using a config-driven map plus a heuristic fallback.
+- Writes a cascading registry tree under **four scopes** so the menu appears everywhere: file right-click, folder right-click, folder background, and Desktop background.
+- Single-script categories are flattened into the top level (no useless one-item submenus).
+- Every leaf carries `HasLUAShield` so Windows shows the UAC shield and elevates via `runas` -- one prompt, no nested elevation.
+- Uses `pwsh` 7+ when available (PATH -> `C:\Program Files\PowerShell\{7,6}` -> WindowsApps), falls back to `powershell` 5.1.
+
+### Opt-in / opt-out
+
+It is **not installed automatically**. Users who want it run:
+
+```powershell
+.\run.ps1 install      # add the menu (idempotent)
+.\run.ps1 refresh      # uninstall + reinstall (run after editing registry.json or bumping version)
+.\run.ps1 uninstall    # fully remove from every scope
+```
+
+### Why a separate script (53) instead of extending an existing one
+
+Script 31 (`pwsh-context-menu`) and script 10 (`vscode-context-menu-fix`) each manage a single fixed entry. The Script Fixer menu is dynamic -- it rebuilds itself from `registry.json` -- so it gets its own folder with three focused helpers (`categorize.ps1`, `shell-detect.ps1`, `menu-writer.ps1`) and an `install | uninstall | refresh` command surface.
+
+### File structure
+
+```
+scripts/53-script-fixer-context-menu/
+  config.json
+  log-messages.json
+  run.ps1
+  helpers/
+    categorize.ps1
+    shell-detect.ps1
+    menu-writer.ps1
+spec/53-script-fixer-context-menu/
+  readme.md
+```
+
+### Implementation notes
+
+- **Cascading menus**: built using the documented `MUIVerb` + `SubCommands=""` pattern (no DLL, no shell extension binary).
+- **Wildcard-safe writes**: `[Microsoft.Win32.Registry]::ClassesRoot.CreateSubKey(...)` is used for writes (PowerShell's registry provider chokes on the `HKCR\*` wildcard); deletes use `reg.exe delete /f` for fully recursive teardown.
+- **Idempotent install**: each scope's tree is wiped before being rebuilt, so re-running `install` always reflects the current `registry.json` and version.
+- **Versioning**: top-level label is composed from `config.titleTemplate` (`"Script Fixer v{version}"`) using the value in `scripts/version.json`. Bumping the version requires `\.run.ps1 refresh` to refresh the menu label.
+- **CODE RED compliance**: every registry write/delete failure logs the exact key path plus the failure reason (`reg.exe exit N` or exception message); shell-detection logs every searched path on a miss.
+- Registered as `"53": "53-script-fixer-context-menu"` in `scripts/registry.json`.
+
 ## [v0.55.0] -- 2026-04-21
+
 
 ### Added: script 52 -- VS Code folder-only context menu repair
 
