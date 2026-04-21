@@ -107,6 +107,11 @@ function New-LeafEntry {
     .SYNOPSIS
         Writes a leaf menu entry (label + Icon + HasLUAShield) and its
         \command subkey with the supplied command line.
+
+    .PARAMETER Extended
+        When $true, sets the 'Extended' registry value (empty string), which
+        makes the leaf appear ONLY when the user holds SHIFT while
+        right-clicking. Used for the "no prompt" twin of each script leaf.
     #>
     param(
         [string]$ParentPsPath,
@@ -114,6 +119,7 @@ function New-LeafEntry {
         [string]$Label,
         [string]$IconPath,
         [string]$CommandLine,
+        [bool]$Extended = $false,
         $LogMsgs
     )
 
@@ -124,6 +130,10 @@ function New-LeafEntry {
         $key  = $hkcr.CreateSubKey($leafSub)
         $key.SetValue("",             $Label)
         $key.SetValue("HasLUAShield", "")
+        if ($Extended) {
+            # Windows hides this entry unless SHIFT is held during right-click
+            $key.SetValue("Extended", "")
+        }
         if (-not [string]::IsNullOrWhiteSpace($IconPath)) {
             $key.SetValue("Icon", $IconPath)
         }

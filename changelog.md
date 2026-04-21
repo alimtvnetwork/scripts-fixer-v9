@@ -2,7 +2,62 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.58.0] -- 2026-04-21
+
+### Added: confirmation prompt with Shift-click bypass for the Script Fixer menu (script 53)
+
+Clicking any leaf in the cascading "Script Fixer vX.Y.Z" right-click menu now opens a 5-second countdown before invoking the chosen script. Hold **SHIFT** while right-clicking to reveal a twin "(no prompt -- Shift)" leaf that bypasses the countdown and runs immediately.
+
+### Behavior
+
+- **Default click**: opens elevated terminal -> "Auto-proceeding in 5s. Press Ctrl+C to cancel, any key to skip." -> runs `run.ps1 -I <id>`.
+- **Shift+click**: a second leaf appears under the same cascading parent (Windows `Extended` verb attribute). Clicking it bypasses the prompt entirely.
+- **Cancel during countdown**: Ctrl+C aborts -- script is NOT executed, terminal stays open so the user can read the cancellation message.
+- **Skip during countdown**: any key proceeds immediately.
+
+### New reusable helper
+
+`scripts/shared/confirm-launch.ps1` -- exposes `Invoke-ConfirmedLaunch -RepoRoot -ScriptId -ScriptLabel -CountdownSeconds [-Bypass]`. Designed so any future menu (script 54, anything else) can opt in by pointing its `commandTemplate` at this helper -- single source of truth for "ask first, then run".
+
+### Configuration (`scripts/53-script-fixer-context-menu/config.json`)
+
+New block:
+
+```json
+"confirmBeforeLaunch": {
+  "enabled": true,
+  "countdownSeconds": 5,
+  "emitBypassLeaves": true,
+  "bypassLabelSuffix": " (no prompt -- Shift)",
+  "bypassSubkeySuffix": "-NoPrompt"
+}
+```
+
+Two command templates in `shell.commandTemplate` and `shell.bypassCommandTemplate` -- both call `Invoke-ConfirmedLaunch`, the bypass variant adds `-Bypass`. Placeholders: `{shellExe}`, `{repoRoot}`, `{scriptId}`, `{leafLabel}`, `{countdown}`.
+
+### How "Shift to reveal" works
+
+Each "no prompt" leaf gets the registry value `Extended = ""`. Windows hides any `shell\<verb>` entry carrying that value unless the user holds SHIFT during right-click. No DLL, no shell extension -- pure registry.
+
+### Disabling
+
+Set `confirmBeforeLaunch.enabled = false` and re-run `.\run.ps1 -I 53 refresh` to restore direct (no-prompt) leaves with no Shift twin. Set `emitBypassLeaves = false` to keep the prompt but drop the Shift bypass.
+
+### Safety: helper-missing fallback
+
+If `scripts/shared/confirm-launch.ps1` is absent at install time, the install logs the exact missing path (CODE RED rule) and falls back to direct invocation -- the menu still works, just without prompts. Install does not fail.
+
+### Files
+
+- **Added**: `scripts/shared/confirm-launch.ps1`
+- **Modified**: `scripts/53-script-fixer-context-menu/config.json`, `scripts/53-script-fixer-context-menu/helpers/menu-writer.ps1` (`New-LeafEntry` now accepts `-Extended`), `scripts/53-script-fixer-context-menu/run.ps1` (dual-leaf emission via local `Write-ScriptLeafPair` helper).
+
+### Refresh required
+
+After upgrading, run `.\run.ps1 -I 53 refresh` (or `.\scripts\53-script-fixer-context-menu\install.ps1 -Refresh`) to rewrite the registry tree with the new dual leaves.
+
 ## [v0.57.0] -- 2026-04-21
+
 
 ### Added: standalone install/uninstall pair for the Script Fixer menu (script 53)
 
