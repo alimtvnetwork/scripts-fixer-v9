@@ -786,10 +786,19 @@ function Resolve-InstallKeywords {
                     if ($hasRemoteMap) {
                         $remoteEntry = $remoteMap.$action
                     }
-                    $isRemoteMissing = $null -eq $remoteEntry -or [string]::IsNullOrWhiteSpace($remoteEntry.url)
+                    # A remote entry must supply either 'url' (HTTP) or 'path' (repo-relative wrapper, v0.47.1+).
+                    $remoteUrl  = $null
+                    $remotePath = $null
+                    if ($null -ne $remoteEntry) {
+                        if ($remoteEntry.PSObject.Properties['url'])  { $remoteUrl  = "$($remoteEntry.url)".Trim() }
+                        if ($remoteEntry.PSObject.Properties['path']) { $remotePath = "$($remoteEntry.path)".Trim() }
+                    }
+                    $hasUrl  = -not [string]::IsNullOrWhiteSpace($remoteUrl)
+                    $hasPath = -not [string]::IsNullOrWhiteSpace($remotePath)
+                    $isRemoteMissing = $null -eq $remoteEntry -or (-not $hasUrl -and -not $hasPath)
                     if ($isRemoteMissing) {
                         Write-Host "  [ FAIL ] " -ForegroundColor Red -NoNewline
-                        Write-Host "Remote keyword '$token' resolves to 'remote:$action' but no URL is mapped in $keywordsFile (missing 'remote.$action.url')."
+                        Write-Host "Remote keyword '$token' resolves to 'remote:$action' but no source is mapped in $keywordsFile (need 'remote.$action.url' OR 'remote.$action.path')."
                         $hasError = $true
                         continue
                     }
@@ -798,7 +807,12 @@ function Resolve-InstallKeywords {
                         $rawSha = "$($remoteEntry.sha256)".Trim()
                         if (-not [string]::IsNullOrWhiteSpace($rawSha)) { $remoteSha = $rawSha.ToLowerInvariant() }
                     }
-                    $entries.Add(@{ Kind = "remote"; Key = $action; Url = $remoteEntry.url; Label = $remoteEntry.label; Sha256 = $remoteSha; Token = $token })
+                    # Resolve local path against repo root if present.
+                    $resolvedLocalPath = $null
+                    if ($hasPath) {
+                        $resolvedLocalPath = Join-Path $RootDir $remotePath
+                    }
+                    $entries.Add(@{ Kind = "remote"; Key = $action; Url = $remoteUrl; LocalPath = $resolvedLocalPath; Label = $remoteEntry.label; Sha256 = $remoteSha; Token = $token })
                     continue
                 }
 
