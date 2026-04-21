@@ -2,6 +2,48 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.52.0] -- 2026-04-21
+
+### Added: `--summary-json` machine-readable run summary on stdout
+
+Every script that already prints the human-readable registry-trace summary (`os flp`, every `os clean-<name>`) now also accepts a global `--summary-json` flag. When present, `Close-RegistryTrace` writes one extra line to **stdout** at the end of the run -- a single-line JSON object with the OK/FAIL/SKIP counts and the same tail lines that the boxed summary block prints. Designed for CI wrappers, `jq`, and quick `grep` filters.
+
+```
+$ .\run.ps1 os flp --summary-json
+  ... (normal human output)
+REGTRACE_SUMMARY_JSON {"script":"os-fix-long-path","logfile":null,"verbose":false,"counts":{"ok":2,"fail":0,"skip":1,"total":3},"tail":["[2026-04-21 14:32:11.482] [SET         ] [OK  ] HKLM:\\..."],"tailShown":3,"tailMax":20,"timestamp":"2026-04-21T14:32:11.5012345+08:00"}
+```
+
+The `REGTRACE_SUMMARY_JSON ` prefix lets a caller `grep ^REGTRACE_SUMMARY_JSON` to pluck exactly one line from mixed stdout, strip the prefix, and pipe into `jq`. The JSON itself is emitted with `ConvertTo-Json -Compress` so it always fits on a single line regardless of tail size.
+
+#### Implementation: `scripts/shared/registry-trace.ps1`
+
+- New module-scoped flag `$script:_RegTraceSummaryJson` (default `$false`).
+- New `Set-RegistryTraceSummaryJson [-Enabled $true]` -- explicit toggle for callers that have already parsed the flag themselves.
+- New `Test-SummaryJsonSwitch -Argv $argv` -- mirrors `Test-VerboseSwitch`. Recognises `--summary-json`, `-summary-json`, `/summary-json`.
+- New `Remove-SummaryJsonSwitch -Argv $argv` -- returns a copy of `$Argv` with the flag tokens stripped. Required because the leaf helpers (`longpath.ps1`, `clean-categories\*.ps1`) use `[CmdletBinding()]` and would throw on the unknown switch if it reached them.
+- New `Show-RegistryTraceSummaryJsonOutput [-TailLines 20]` -- builds an `[ordered]` payload `{ script, logfile, verbose, counts{ok,fail,skip,total}, tail[], tailShown, tailMax, timestamp }` and emits `Write-Output "REGTRACE_SUMMARY_JSON <json>"`. Always emits, even on a zero-op run, so a CI consumer can rely on **exactly one** prefixed line per script invocation.
+- `Close-RegistryTrace` now consults both the module flag and the env-var fallback `REGTRACE_SUMMARY_JSON=1` (accepted: `1|true|yes|on`). The env-var path is what makes the flag travel across the splat boundary into `[CmdletBinding()]` children we don't want to add a `[switch]$SummaryJson` parameter to.
+- The existing `-NoSummary` switch suppresses both the human and the JSON output, preserving the escape hatch.
+
+#### Wiring: dispatchers strip the flag and propagate via env
+
+- `scripts/os/run.ps1` -- dot-sources `registry-trace.ps1`, then early-checks `$Rest` with `Test-SummaryJsonSwitch`. On hit: strips it via `Remove-SummaryJsonSwitch`, sets `$env:REGTRACE_SUMMARY_JSON = "1"`, calls `Set-RegistryTraceSummaryJson -Enabled $true`. The cleaned `$Rest` is then splatted to whichever helper handles the action (`flp`, `clean`, `clean-<name>`, `temp-clean`, `hibernate`, `add-user`).
+- `scripts/os/helpers/clean-runner.ps1` -- same treatment on `$Argv` right after the existing `Test-VerboseSwitch` block, so direct invocations of `clean-<name>` (which bypass the outer dispatcher) also work. The env var carries the flag into the spawned category helper's own `Close-RegistryTrace` call.
+
+#### Why env var instead of a `[switch]` parameter on every helper
+
+Adding `[switch]$SummaryJson` to all 36 `clean-categories\*.ps1` helpers plus `longpath.ps1` would have been 37+ touch points of boilerplate. The env-var fallback inside `Close-RegistryTrace` keeps the change to two dispatchers and one shared helper, and gracefully degrades: if a future helper is invoked completely standalone (no dispatcher), `--summary-json` simply won't be parsed and the env var won't be set -- no error, just no JSON line. Callers who need it from a standalone script can call `Set-RegistryTraceSummaryJson -Enabled $true` directly before exit.
+
+#### Files touched
+
+- `scripts/shared/registry-trace.ps1` -- 4 new functions, `Close-RegistryTrace` updated.
+- `scripts/os/run.ps1` -- dot-source registry-trace and a 6-line strip/propagate block at top.
+- `scripts/os/helpers/clean-runner.ps1` -- 6-line strip/propagate block alongside the existing `-Verbose` parser.
+- `scripts/version.json` -- `0.51.0` -> `0.52.0`.
+
+No leaf helpers, no log-message JSON files, and no spec docs needed changes.
+
 ## [v0.51.0] -- 2026-04-21
 
 ### Added: end-of-run registry-trace summary (last 20 lines + OK/FAIL/SKIP totals)
