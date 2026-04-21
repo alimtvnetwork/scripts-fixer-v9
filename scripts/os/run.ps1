@@ -232,6 +232,35 @@ function Show-OsHelp {
     Write-Host '      .\run.ps1 os clean-explorer-mru -Verbose --summary-tail 50 --summary-json' -ForegroundColor Yellow
     Write-Host '      # tail[] shows min(50, buffer.Count) items (max 20 due to buffer cap)' -ForegroundColor DarkGray
     Write-Host ""
+    Write-Host "  CI EXAMPLE -- catch typos in GitHub Actions" -ForegroundColor Cyan
+    Write-Host "    Add --summary-tail-warn to your workflow to surface fat-fingered tail values" -ForegroundColor DarkGray
+    Write-Host "    instead of letting them silently fall back to 20:" -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "    # .github/workflows/cleanup.yml" -ForegroundColor DarkGray
+    Write-Host "    jobs:" -ForegroundColor Yellow
+    Write-Host "      cleanup:" -ForegroundColor Yellow
+    Write-Host "        runs-on: windows-latest" -ForegroundColor Yellow
+    Write-Host "        steps:" -ForegroundColor Yellow
+    Write-Host "          - uses: actions/checkout@v4" -ForegroundColor Yellow
+    Write-Host "          - name: Run OS clean with summary" -ForegroundColor Yellow
+    Write-Host "            shell: pwsh" -ForegroundColor Yellow
+    Write-Host "            run: |" -ForegroundColor Yellow
+    Write-Host "              .\run.ps1 os clean -Verbose --dry-run ``" -ForegroundColor Yellow
+    Write-Host "                --summary-tail `$`{`{ vars.TAIL_LINES }`} ``" -ForegroundColor Yellow
+    Write-Host "                --summary-tail-warn ``" -ForegroundColor Yellow
+    Write-Host "                --summary-json | Tee-Object -FilePath summary.json" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "    Why this matters:" -ForegroundColor DarkGray
+    Write-Host "      * Without --summary-tail-warn: vars.TAIL_LINES = '5O' (letter O)" -ForegroundColor DarkGray
+    Write-Host "        silently falls back to 20. You'd never know the var was bad." -ForegroundColor DarkGray
+    Write-Host "      * With --summary-tail-warn: a yellow [ WARN ] line appears in the" -ForegroundColor DarkGray
+    Write-Host "        Actions log:" -ForegroundColor DarkGray
+    Write-Host "          [ WARN ] --summary-tail ignored: value '5O' is not numeric." -ForegroundColor Yellow
+    Write-Host "                  Falling back to default 20." -ForegroundColor DarkGray
+    Write-Host "      * Confirm with the JSON: tailSource='default' (vs 'env' when valid)." -ForegroundColor DarkGray
+    Write-Host "      * Optional: grep for [ WARN ] in your job to fail-fast on bad config:" -ForegroundColor DarkGray
+    Write-Host "          grep '\[ WARN \] --summary-tail' summary.json && exit 1" -ForegroundColor DarkGray
+    Write-Host ""
 }
 
 $normalizedAction = ""
