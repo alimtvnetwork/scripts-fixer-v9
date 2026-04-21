@@ -28,6 +28,31 @@
           .logs/os-fix-long-path-registry-trace.log
           .logs/os-clean-explorer-mru-registry-trace.log
 
+    End-of-run summary:
+        When -Verbose is active, a one-command summary prints automatically at
+        script exit (via Close-RegistryTrace). It shows the last N trace lines
+        plus OK/FAIL/SKIP totals. Control the tail length with --summary-tail N.
+
+        --summary-tail N formats accepted:
+          --summary-tail 50       # space separator (POSIX style)
+          --summary-tail=50       # equals separator
+          -summary-tail 50        # single-dash variant with space
+          -summary-tail:50        # colon separator (PowerShell style)
+          -SummaryTail 50         # PascalCase variant (PowerShell binding)
+          --tail-lines 50         # alternative long form
+
+        Special value: N=0 means "totals only" -- no trace lines are printed,
+        only the OK/FAIL/SKIP counts. Useful for CI logs where you want
+        the summary stats without the clutter.
+
+    Machine-readable output:
+        Pass --summary-json to emit a single-line JSON object to stdout:
+
+          REGTRACE_SUMMARY_JSON {"script":"os-flp","counts":{"OK":3,"FAIL":0,"SKIP":0},"tail":[],...}
+
+        This is emitted in addition to the human-readable summary. Useful for
+        piping to jq, logging aggregators, or CI artifact capture.
+
     CODE RED: every failure entry includes the exact failing registry path +
     the exception message verbatim. Never swallow a path on failure.
 #>
