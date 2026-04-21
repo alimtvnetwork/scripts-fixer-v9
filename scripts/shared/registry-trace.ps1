@@ -489,16 +489,41 @@ function Close-RegistryTrace {
     <#
     .SYNOPSIS
         Append a footer with a one-line summary. Optional; safe if no trace.
+
+    .PARAMETER TailLines
+        Override how many trailing trace lines the human + JSON summaries
+        include. When omitted, the env-var REGTRACE_SUMMARY_TAIL is read
+        (set by --summary-tail N at the dispatcher), and finally the
+        module default $script:_RegTraceTailMax (20) is used. Negative
+        values are clamped to 0; non-numeric env values are ignored.
     #>
     param(
         [string]$Status = "ok",
-        [switch]$NoSummary
+        [switch]$NoSummary,
+        [Nullable[int]]$TailLines = $null
     )
 
-    # Always print the one-command summary (last 20 + totals) unless suppressed.
+    # Resolve effective tail count: explicit param > env var > default.
+    $effectiveTail = $script:_RegTraceTailMax
+    if ($null -ne $TailLines) {
+        $effectiveTail = [int]$TailLines
+    } else {
+        try {
+            $envTail = [Environment]::GetEnvironmentVariable("REGTRACE_SUMMARY_TAIL")
+            if (-not [string]::IsNullOrWhiteSpace($envTail)) {
+                $parsed = 0
+                if ([int]::TryParse($envTail, [ref]$parsed) -and $parsed -ge 0) {
+                    $effectiveTail = $parsed
+                }
+            }
+        } catch { } # leave default on any read failure
+    }
+    if ($effectiveTail -lt 0) { $effectiveTail = 0 }
+
+    # Always print the one-command summary (last N + totals) unless suppressed.
     # Safe when -Verbose was not set: prints a one-line "no trace" notice.
     if (-not $NoSummary) {
-        Show-RegistryTraceSummary -TailLines $script:_RegTraceTailMax
+        Show-RegistryTraceSummary -TailLines $effectiveTail
     }
 
     # Machine-readable JSON summary (--summary-json). Honour either the
@@ -513,7 +538,7 @@ function Close-RegistryTrace {
     } catch { $envOn = $false }
     $emitJson = $script:_RegTraceSummaryJson -or $envOn
     if ($emitJson -and -not $NoSummary) {
-        try { Show-RegistryTraceSummaryJsonOutput -TailLines $script:_RegTraceTailMax }
+        try { Show-RegistryTraceSummaryJsonOutput -TailLines $effectiveTail }
         catch { Write-Host "  [ WARN ] summary-json emit failed: $($_.Exception.Message)" -ForegroundColor Yellow }
     }
 
