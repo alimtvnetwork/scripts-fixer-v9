@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.53.4] -- 2026-04-21
+
+### Added: "Try it" copy-paste examples for `--summary-tail`
+
+New hands-on examples in help text let users immediately test `--summary-tail` behavior with `-1`, `abc`, `0`, and `50` values, showing the exact JSON `tail[]` output for each case.
+
+- **`scripts/shared/registry-trace.ps1`** comment-based help: new "Try it" subsection with 4 copy-pasteable command lines and their expected JSON output snippets.
+- **`scripts/os/run.ps1`** `Show-OsHelp`: new "TRY IT (copy-paste examples)" section under REGISTRY TRACE FLAGS with color-coded PowerShell examples and explanatory comments.
+
 ## [v0.53.3] -- 2026-04-21
 
 ### Documented: invalid `--summary-tail` value handling
