@@ -2,6 +2,71 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.49.0] -- 2026-04-21
+
+### Added: verbose registry-trace mode for both registry-touching scripts (`os flp` + `os clean-explorer-mru`)
+
+Pass `-Verbose` (PowerShell CommonParameter) to either script and every registry read, write, value delete, and key delete is appended to a dedicated plain-text sidecar log under `.logs/`, independent of the structured JSON log produced by `logging.ps1`. The trace captures the exact `HK*:\...` path, value name, old value, new value, outcome (`OK` / `FAIL` / `SKIP`), and the verbatim exception message on failure.
+
+#### New shared helper: `scripts/shared/registry-trace.ps1`
+
+Four exported functions, all StrictMode-clean, all module-scoped state:
+
+- `Initialize-RegistryTrace -ScriptName <name> -VerboseEnabled <bool>` -- called once near the top of a host script (after `Initialize-Logging`). Sanitises the script name into `<sanitised>-registry-trace.log` under `.logs/` (repo root, parent of `scripts/`, matching the logging memory) and writes a header block: timestamp, user, host, PID, PSVersion, log path. **No-op when `-VerboseEnabled` is `$false`** -- the file is never created. Failures to create `.logs/` or write the header disable the trace gracefully and emit a single yellow `[ WARN ]` (CODE RED: the failing path is included verbatim).
+- `Write-RegistryTrace -Op <SET|GET|REMOVE-VALUE|REMOVE-KEY|READ-ONLY> -Path <regPath> [-Name <valName>] [-OldValue <obj>] [-NewValue <obj>] [-Status <OK|FAIL|SKIP>] [-Reason <text>]` -- one trace line. Format: `[2026-04-21 14:32:11.482] [SET         ] [OK  ] HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem :: LongPathsEnabled  old=<null>  new=1`. For `FAIL` the reason carries the exception message verbatim. Disables itself on a write failure (after a single warn) so a borked SD card doesn't spam the host stream.
+- `Close-RegistryTrace [-Status <text>]` -- appends a footer with finish timestamp + final status.
+- `Test-VerboseSwitch -Argv <string[]>` -- mirrors `Test-DryRunSwitch` / `Test-YesSwitch` from `_sweep.ps1`. Recognises `--verbose`, `-verbose`, `/verbose`. Used by `clean-runner.ps1` to detect the flag before splatting it into a category helper.
+
+#### Wiring: `scripts/os/helpers/longpath.ps1` (`os flp`)
+
+Now declares `[CmdletBinding()]` so PowerShell's built-in `-Verbose` parameter is honoured. Initialises the trace as `os-fix-long-path` immediately after `Initialize-Logging`. Records the pre-flight `Get-ItemProperty`, the early-exit when already enabled (`READ-ONLY` + `SKIP`), the `Set-ItemProperty` write itself (`SET`, with `old=` from the pre-flight and `new=1`), the post-write verification (`GET`, reason `post-write verification`), and the verification-mismatch path (`READ-ONLY` + `FAIL`). Both `$PSBoundParameters.ContainsKey('Verbose')` and the inherited `$VerbosePreference` are checked, so the trace fires whether the user types `os flp -Verbose` directly or `run.ps1` forwards the flag through `@Rest`.
+
+#### Wiring: `scripts/os/helpers/clean-categories/explorer-mru.ps1` (`os clean-explorer-mru`)
+
+Now declares `[CmdletBinding()]` and initialises the trace as `os-clean-explorer-mru`. Records each of the three top-level keys (`RunMRU`, `RecentDocs`, `TypedPaths`) as `READ-ONLY` + `SKIP` when missing or `GET` with the enumerated value count when present, each value deletion as `REMOVE-VALUE` with the old value (best-effort `Get-ItemProperty` before deletion) and `OK` / `FAIL` + exception message, and each `RecentDocs` per-extension subkey deletion as `REMOVE-KEY` + `OK` / `FAIL`. Dry-run mode logs every would-be deletion as `REMOVE-VALUE` + `SKIP` + reason `dry-run`, so the trace doubles as a preview. `Close-RegistryTrace` is called with the final result `Status`.
+
+#### Wiring: `scripts/os/helpers/clean-runner.ps1`
+
+Parses `--verbose` from `$Argv` via `Test-VerboseSwitch`, then forwards `-Verbose` to the category helper **only when the helper declares `[CmdletBinding()]`** (detected by grepping the first 12 lines of the helper for `[CmdletBinding()]`). Splatting an empty hashtable into the other 58 non-cmdlet helpers keeps them untouched -- no risk of "A parameter cannot be found that matches parameter name 'Verbose'" on the bun/cargo/chrome/etc. cleaners.
+
+Both invocation paths work:
+
+```
+.\run.ps1 os flp -Verbose
+.\run.ps1 os clean-explorer-mru --verbose
+.\run.ps1 os clean-explorer-mru --dry-run --verbose
+```
+
+#### Log file location + naming
+
+Per the `logging.ps1` memory rule, traces live in `.logs/` at repo root (parent of `scripts/`), **never** `scripts/logs/`. Sanitisation is `lowercase -> [^a-z0-9]+ collapsed to '-' -> trimmed`, identical to the JSON log convention:
+
+- `.logs/os-fix-long-path-registry-trace.log`
+- `.logs/os-clean-explorer-mru-registry-trace.log`
+
+Tail in a second terminal:
+
+```
+Get-Content .logs\os-fix-long-path-registry-trace.log -Wait -Tail 20
+```
+
+#### What was *not* changed
+
+- The structured JSON log under `.logs/<script>.json` is untouched. The trace is a sidecar, not a replacement.
+- The other 58 cleaners do not get `[CmdletBinding()]`. They don't touch the registry; adding the trace would be noise. The infrastructure is in place to extend later -- a new registry-touching helper just needs `[CmdletBinding()]`, the two `Initialize-RegistryTrace` lines at the top, and `Write-RegistryTrace` calls around its registry writes.
+- No `os flp` / `os clean-explorer-mru` behaviour changes when `-Verbose` is **not** passed: zero new files, zero new host output, zero performance impact (the `Write-RegistryTrace` early-out is a single boolean check).
+
+#### Files changed
+
+```
+NEW     scripts/shared/registry-trace.ps1                       (~190 lines)
+MOD     scripts/os/helpers/longpath.ps1                         ([CmdletBinding] + 6 trace calls)
+MOD     scripts/os/helpers/clean-categories/explorer-mru.ps1    ([CmdletBinding] + 8 trace calls)
+MOD     scripts/os/helpers/clean-runner.ps1                     (verbose detection + cmdlet-binding-gated splat)
+MOD     scripts/version.json                                    (0.48.1 -> 0.49.0)
+MOD     changelog.md                                            (this entry)
+```
+
 > **Version note:** the user requested v0.47.1 for this change, but v0.47.1 was
 > already published (the starship local-wrapper release on 2026-04-21). To keep
 > the version chain monotonic this entry ships as **v0.48.1**.
