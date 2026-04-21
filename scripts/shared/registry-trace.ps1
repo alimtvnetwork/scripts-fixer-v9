@@ -482,14 +482,16 @@ function Get-SummaryTailArg {
         $t   = $raw.Trim()
         $low = $t.ToLower()
 
-        # Form 1: --summary-tail=N
+        # Form 1: --summary-tail=N or --summary-tail:N (inline separator)
         foreach ($n in $names) {
-            if ($low.StartsWith("$n=")) {
-                $val = $t.Substring($n.Length + 1)
-                $parsed = 0
-                $ok = [int]::TryParse($val, [ref]$parsed)
-                if ($ok -and $parsed -ge 0) { return $parsed }
-                return $null
+            foreach ($sep in @("=", ":")) {
+                if ($low.StartsWith("$n$sep")) {
+                    $val = $t.Substring($n.Length + $sep.Length)
+                    $parsed = 0
+                    $ok = [int]::TryParse($val, [ref]$parsed)
+                    if ($ok -and $parsed -ge 0) { return $parsed }
+                    return $null
+                }
             }
         }
 
