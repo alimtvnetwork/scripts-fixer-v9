@@ -705,18 +705,67 @@ function Test-DecimalLikeString {
             "1.5e2"    full scientific
             "3,5"      comma decimal (locale slip / EU style)
 
-        Returns $false for plain integers, empty/null, and things like
-        "abc", "5O", "x3" -- those go through the generic "not numeric"
-        branch instead.
+        Returns $false for plain integers, empty/null, things like "abc",
+        "5O", "x3" (those go through the generic "not numeric" branch), AND
+        thousand-separator-shaped values like "1,000" or "1.000.000" -- those
+        are caught earlier by Test-ThousandSeparatorString and get their own
+        dedicated warning.
     #>
     param([string]$Value)
     if ([string]::IsNullOrWhiteSpace($Value)) { return $false }
     $v = $Value.Trim()
     # Plain integers (incl. signed) are NOT decimal-like.
     if ($v -match '^-?\d+$') { return $false }
+    # Thousand-separator shapes are handled by their own detector; don't
+    # double-classify them as decimals.
+    if (Test-ThousandSeparatorString -Value $v) { return $false }
     # Any of: digits with a dot anywhere, leading/trailing dot, comma
     # decimal, or scientific notation.
     if ($v -match '^-?(\d+\.\d*|\d*\.\d+|\d+,\d+|\d+(\.\d+)?[eE]-?\d+)$') { return $true }
+    return $false
+}
+
+function Test-ThousandSeparatorString {
+    <#
+    .SYNOPSIS
+        Detect whether a string looks like an integer written with thousand
+        separators (US "1,000" / "1,000,000" or EU "1.000" / "1.000.000"),
+        so we can warn with a consistent, dedicated message instead of
+        misclassifying it as a locale decimal.
+
+    .DESCRIPTION
+        Recognised shapes (all return $true):
+            "1,000"           US thousands
+            "1,000,000"       US thousands, multi-group
+            "10,000"          4-digit head, US
+            "999,999,999"     max US-style
+            "1.000"           EU thousands (single group)
+            "1.000.000"       EU thousands, multi-group
+            "-1,000"          signed
+            "-1.000.000"      signed EU
+
+        Rules:
+          - 1 to 3 digit head, then one OR MORE groups of exactly 3 digits
+            separated by the SAME separator (all commas OR all dots).
+          - Mixed separators ("1,000.50") are NOT thousand-sep -- they're
+            a number with both grouping AND a decimal, which is ambiguous
+            and falls through to decimal-like / not-numeric.
+          - Single-group EU "1.000" is intentionally treated as thousands,
+            NOT as the decimal 1.000 -- it's almost always a typo/locale
+            slip when used as a tail count, and the warning tells the user
+            exactly that so they can fix it.
+          - "1,00" or "1.00" (2-digit trailing group) is NOT thousands;
+            it's decimal-like and handled by Test-DecimalLikeString.
+
+        Returns $false for plain integers, empty/null, and anything else.
+    #>
+    param([string]$Value)
+    if ([string]::IsNullOrWhiteSpace($Value)) { return $false }
+    $v = $Value.Trim()
+    # All-comma grouping: 1[,000]+
+    if ($v -match '^-?\d{1,3}(,\d{3})+$') { return $true }
+    # All-dot grouping: 1[.000]+
+    if ($v -match '^-?\d{1,3}(\.\d{3})+$') { return $true }
     return $false
 }
 
@@ -765,6 +814,12 @@ function Write-SummaryTailWarning {
             if ([int]::TryParse($val, [ref]$parsed)) {
                 if ($parsed -lt 0) { "'$token$val' rejected -- negative integers are not allowed" }
                 else               { "'$token$val' rejected -- value '$val' is not a non-negative integer" }
+            } elseif (Test-ThousandSeparatorString -Value $val) {
+                # Detected BEFORE decimal-like so "1,000" / "1.000" don't get
+                # mis-warned as "comma decimal" or "trailing-dot decimal".
+                $sep      = if ($val -like '*,*') { "','" } else { "'.'" }
+                $stripped = $val -replace '[,.]',''
+                "'$token$val' rejected -- thousand separators ($sep) are not allowed (got '$val'); use a plain integer like '$stripped'"
             } elseif (Test-DecimalLikeString -Value $val) {
                 "'$token$val' rejected -- decimals are not allowed (got '$val'); use a non-negative integer"
             } else {
