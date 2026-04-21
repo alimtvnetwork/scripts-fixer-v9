@@ -172,16 +172,31 @@ function Show-OsHelp {
     Write-Host "  REGISTRY TRACE FLAGS (global, work with any action that touches registry)" -ForegroundColor Cyan
     Write-Host "    -Verbose                Enable per-operation registry trace logging to .logs/" -ForegroundColor DarkGray
     Write-Host "    --summary-tail <N>      End-of-run summary: show last N trace lines (default 20)" -ForegroundColor DarkGray
-    Write-Host "                            Forms: --summary-tail 50, --summary-tail=50, -summary-tail 50, -summary-tail:50" -ForegroundColor DarkGray
+    Write-Host "                            Accepted forms (case-insensitive):" -ForegroundColor DarkGray
+    Write-Host "                              --summary-tail 50        (space separator)" -ForegroundColor DarkGray
+    Write-Host "                              --summary-tail=50        (equals separator)" -ForegroundColor DarkGray
+    Write-Host "                              --summary-tail:50        (colon separator)" -ForegroundColor DarkGray
+    Write-Host "                              -summary-tail 50         (single-dash variant)" -ForegroundColor DarkGray
+    Write-Host "                              -SummaryTail 50          (PowerShell PascalCase)" -ForegroundColor DarkGray
+    Write-Host "                              /summary-tail 50         (Windows slash style)" -ForegroundColor DarkGray
     Write-Host "                            Special: N=0 shows totals only (no tail lines)" -ForegroundColor DarkGray
     Write-Host "    --summary-json          Emit machine-readable JSON summary to stdout (for CI/piping)" -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "    VALID vs INVALID examples:" -ForegroundColor Cyan
+    Write-Host "      VALID:  --summary-tail 50      -> 50 lines shown" -ForegroundColor DarkGray
+    Write-Host "      VALID:  --summary-tail=50      -> 50 lines shown" -ForegroundColor DarkGray
+    Write-Host "      VALID:  --summary-tail:50       -> 50 lines shown" -ForegroundColor DarkGray
+    Write-Host "      VALID:  -summary-tail 50       -> 50 lines shown (single dash)" -ForegroundColor DarkGray
+    Write-Host "      VALID:  --SUMMARY-TAIL 50       -> 50 lines shown (case insensitive)" -ForegroundColor DarkGray
+    Write-Host "      VALID:  --summary-tail 0        -> 0 lines (totals only mode)" -ForegroundColor DarkGray
+    Write-Host "      INVALID: --summary-tail -1      -> falls back to 20 (negative rejected)" -ForegroundColor DarkGray
+    Write-Host "      INVALID: --summary-tail abc     -> falls back to 20 (non-numeric)" -ForegroundColor DarkGray
+    Write-Host "      INVALID: --summary-tail 3.5    -> falls back to 20 (decimals rejected)" -ForegroundColor DarkGray
+    Write-Host "      INVALID: --summary-tail          -> falls back to 20 (missing value)" -ForegroundColor DarkGray
     Write-Host ""
     Write-Host "    Parity: human summary line count == JSON tail[] length (same formula)" -ForegroundColor DarkGray
     Write-Host "      - 0 ops recorded:    human shows 'no operations' notice; JSON tail=[]    (both 0)" -ForegroundColor DarkGray
     Write-Host "      - tail > buffer:     buffer is capped at 20; both clamp to min(N, buffer)" -ForegroundColor DarkGray
-    Write-Host "      - --summary-tail -1: invalid; silently falls back to default 20 (both outputs)" -ForegroundColor DarkGray
-    Write-Host "      - --summary-tail abc: invalid; silently falls back to default 20 (both outputs)" -ForegroundColor DarkGray
-    Write-Host "      - --summary-tail 0:  valid; 'totals only' mode -- 0 lines, both outputs" -ForegroundColor DarkGray
     Write-Host ""
     Write-Host "  TRY IT (copy-paste examples)" -ForegroundColor Cyan
     Write-Host "    # Invalid: fallback to 20 lines" -ForegroundColor DarkGray
