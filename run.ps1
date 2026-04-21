@@ -257,7 +257,8 @@ function Show-RootHelp {
     Write-Host "    $(".\run.ps1 status".PadRight($col))" -NoNewline; Write-Host "Show dashboard of all installed tools" -ForegroundColor DarkGray
     Write-Host "    $(".\run.ps1 status --no-choco".PadRight($col))" -NoNewline; Write-Host "Status without outdated package check" -ForegroundColor DarkGray
     Write-Host "    $(".\run.ps1 doctor".PadRight($col))" -NoNewline; Write-Host "Quick health check of project setup" -ForegroundColor DarkGray
-    Write-Host "    $(".\run.ps1 doctor --self-check".PadRight($col))" -NoNewline; Write-Host "Deep audit: changelog files, version match, clean catalog, keyword resolution" -ForegroundColor DarkGray
+    Write-Host "    $(".\run.ps1 doctor --self-check".PadRight($col))" -NoNewline; Write-Host "Deep audit: changelog files, version, clean catalog, keyword resolution, SHA256 pins" -ForegroundColor DarkGray
+    Write-Host "    $(".\run.ps1 doctor --self-check --skip-network".PadRight($col))" -NoNewline; Write-Host "Same as above but skips sections (d) + (e) for offline use" -ForegroundColor DarkGray
     Write-Host "    $(".\run.ps1 models".PadRight($col))" -NoNewline; Write-Host "Pick AI model backend (llama.cpp / Ollama), browse + install" -ForegroundColor DarkGray
     Write-Host "    $(".\run.ps1 models <ids>".PadRight($col))" -NoNewline; Write-Host "Direct install: CSV of model ids (auto-routes per backend)" -ForegroundColor DarkGray
     Write-Host "    $(".\run.ps1 models list".PadRight($col))" -NoNewline; Write-Host "List all models from both catalogs" -ForegroundColor DarkGray
@@ -1384,13 +1385,24 @@ function Invoke-DoctorSelfCheck {
           (b) version.json matches the latest changelog header
           (c) every category in scripts/os/helpers/clean.ps1 catalog has a matching helper file
           (d) every keyword in install-keywords.json points to a real script ID / valid os:/profile: action
-              / a remote.* entry whose URL responds 200
+              / a remote.* entry whose URL responds 200 (or whose 'path' resolves to a real file)
+          (e) every pinned remote.<key>.sha256 still matches the live upstream body
+              -- full GET, hashed identically to run.ps1 (UTF-8 bytes of decoded string),
+                 expected vs actual printed on mismatch. Empty pins skipped.
+                 Path-based remotes are hashed from disk (not the network).
+        Sections (d) and (e) require network access. Pass -SkipNetwork to skip both
+        (e.g. on an air-gapped CI runner or when offline). Sections (a)-(c) always run.
         Prints a green/red table per row + per-section summaries + final tally.
     #>
+    param([switch]$SkipNetwork)
 
     Write-Host ""
     Write-Host "  Doctor -- Self-Check (deep audit)" -ForegroundColor Cyan
     Write-Host "  =================================" -ForegroundColor DarkGray
+    if ($SkipNetwork) {
+        Write-Host "  [ INFO ] " -ForegroundColor Cyan -NoNewline
+        Write-Host "--skip-network: sections (d) and (e) will be skipped (offline mode)"
+    }
     Write-Host ""
 
     $script:scPass = 0
@@ -1521,6 +1533,9 @@ function Invoke-DoctorSelfCheck {
     # (d) install-keywords.json: every keyword resolves
     # ============================================================
     Write-SCHeader "(d) install-keywords.json: keyword resolution"
+    if ($SkipNetwork) {
+        Write-SCRow "keywords" "(skipped -- --skip-network)" $true "Section (d) requires HEAD probes to remote URLs; skipped per flag."
+    } else {
     $kwFile = Join-Path $sharedDir "install-keywords.json"
     $regFile = Join-Path $scriptsRoot "registry.json"
     if (-not (Test-Path $kwFile)) {
@@ -1633,6 +1648,118 @@ function Invoke-DoctorSelfCheck {
                 }
 
                 Write-SCRow "keyword" $kw $allOk ($details -join ", ")
+            }
+        }
+    }
+    } # end if (-not $SkipNetwork) for section (d)
+
+    # ============================================================
+    # (e) install-keywords.json: pinned remote.<key>.sha256 still matches live body
+    # ============================================================
+    Write-SCHeader "(e) remote SHA256 pins still match upstream body"
+    if ($SkipNetwork) {
+        Write-SCRow "sha256" "(skipped -- --skip-network)" $true "Section (e) requires full GET of every remote URL; skipped per flag."
+    } else {
+        $kwFileE = Join-Path $sharedDir "install-keywords.json"
+        if (-not (Test-Path $kwFileE)) {
+            Write-SCRow "sha256" "install-keywords.json" $false "Missing at: $kwFileE"
+        } else {
+            try {
+                $kwDataE = Get-Content $kwFileE -Raw | ConvertFrom-Json
+            } catch {
+                Write-SCRow "sha256" "json parse" $false "Parse error at ${kwFileE}: $($_.Exception.Message)"
+                $kwDataE = $null
+            }
+            if ($null -ne $kwDataE -and $null -ne $kwDataE.remote) {
+                $remoteCount = 0
+                foreach ($rprop in $kwDataE.remote.PSObject.Properties) {
+                    $rkey = $rprop.Name
+                    $rval = $rprop.Value
+                    $remoteCount++
+
+                    # Pull pinned sha256 (skip if absent or empty)
+                    $pinned = $null
+                    if ($rval.PSObject.Properties['sha256']) {
+                        $rawPin = "$($rval.sha256)".Trim()
+                        if (-not [string]::IsNullOrWhiteSpace($rawPin)) { $pinned = $rawPin.ToLowerInvariant() }
+                    }
+                    if ($null -eq $pinned) {
+                        Write-SCRow "sha256" "remote:$rkey" $true "(unpinned -- skipped, no sha256 to verify)"
+                        continue
+                    }
+
+                    # Resolve source: 'path' (repo-local) or 'url' (HTTP)
+                    $hasRPath = $rval.PSObject.Properties['path'] -and -not [string]::IsNullOrWhiteSpace("$($rval.path)")
+                    $hasRUrl  = $rval.PSObject.Properties['url']  -and -not [string]::IsNullOrWhiteSpace("$($rval.url)")
+                    $body = $null
+                    $sourceLabel = $null
+                    $fetchError = $null
+
+                    if ($hasRPath) {
+                        $relPath = "$($rval.path)".Trim()
+                        $absPath = Join-Path $RootDir $relPath
+                        $sourceLabel = "local: $absPath"
+                        if (-not (Test-Path -LiteralPath $absPath)) {
+                            $fetchError = "Local wrapper not found: $absPath  (referenced by remote.$rkey.path in $kwFileE)"
+                        } else {
+                            try {
+                                $body = Get-Content -LiteralPath $absPath -Raw -ErrorAction Stop
+                            } catch {
+                                $fetchError = "Read failed for $absPath -- $($_.Exception.Message)"
+                            }
+                        }
+                    } elseif ($hasRUrl) {
+                        $rurl = "$($rval.url)".Trim()
+                        $sourceLabel = $rurl
+                        try {
+                            # Mirror run.ps1 dispatcher: Invoke-RestMethod returns the decoded string body.
+                            $body = Invoke-RestMethod -Uri $rurl -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop
+                        } catch {
+                            $code = ""
+                            if ($null -ne $_.Exception.Response -and $null -ne $_.Exception.Response.StatusCode) {
+                                $code = " (HTTP $([int]$_.Exception.Response.StatusCode))"
+                            }
+                            $fetchError = "GET failed for ${rurl}${code} -- $($_.Exception.Message)"
+                        }
+                    } else {
+                        Write-SCRow "sha256" "remote:$rkey" $false "Entry has neither 'url' nor 'path' (path: $kwFileE)"
+                        continue
+                    }
+
+                    if ($null -ne $fetchError) {
+                        Write-SCRow "sha256" "remote:$rkey" $false $fetchError
+                        continue
+                    }
+                    if ([string]::IsNullOrWhiteSpace($body)) {
+                        Write-SCRow "sha256" "remote:$rkey" $false "Empty body from $sourceLabel  (pin source: remote.$rkey.sha256 in $kwFileE)"
+                        continue
+                    }
+
+                    # Compute SHA256 IDENTICALLY to run.ps1 dispatcher: UTF-8 bytes of the decoded string.
+                    try {
+                        $bytes = [System.Text.Encoding]::UTF8.GetBytes("$body")
+                        $sha = [System.Security.Cryptography.SHA256]::Create()
+                        $hashBytes = $sha.ComputeHash($bytes)
+                        $sha.Dispose()
+                        $actual = ([System.BitConverter]::ToString($hashBytes) -replace '-', '').ToLowerInvariant()
+                    } catch {
+                        Write-SCRow "sha256" "remote:$rkey" $false "SHA256 computation failed for $sourceLabel -- $($_.Exception.Message)"
+                        continue
+                    }
+
+                    $isMatch = $actual -eq $pinned
+                    if ($isMatch) {
+                        Write-SCRow "sha256" "remote:$rkey" $true "pinned=$pinned  source=$sourceLabel  ($([Math]::Round(([System.Text.Encoding]::UTF8.GetBytes($body)).Length / 1KB, 2)) KB)"
+                    } else {
+                        $detail = "MISMATCH  expected=$pinned  actual=$actual  source=$sourceLabel  pin=remote.$rkey.sha256 in $kwFileE"
+                        Write-SCRow "sha256" "remote:$rkey" $false $detail
+                    }
+                }
+                if ($remoteCount -eq 0) {
+                    Write-SCRow "sha256" "remote.* entries" $true "(no entries to check -- remote.* is empty)"
+                }
+            } elseif ($null -ne $kwDataE) {
+                Write-SCRow "sha256" "remote.* section" $true "(no remote.* section in $kwFileE -- nothing to verify)"
             }
         }
     }
@@ -2135,16 +2262,20 @@ if ($hasCommand) {
         Show-VersionHeader
         # Detect --self-check flag in remaining args
         $isSelfCheck = $false
+        $isSkipNetwork = $false
         if ($null -ne $Install -and $Install.Count -gt 0) {
             foreach ($a in $Install) {
                 $low = "$a".Trim().ToLower()
                 if ($low -in @("--self-check", "-self-check", "selfcheck", "--selfcheck", "self-check")) {
                     $isSelfCheck = $true
                 }
+                if ($low -in @("--skip-network", "-skip-network", "skipnetwork", "--skipnetwork", "skip-network", "--offline", "-offline", "offline")) {
+                    $isSkipNetwork = $true
+                }
             }
         }
         if ($isSelfCheck) {
-            Invoke-DoctorSelfCheck
+            Invoke-DoctorSelfCheck -SkipNetwork:$isSkipNetwork
         } else {
             Invoke-DoctorCommand
         }
