@@ -1384,13 +1384,24 @@ function Invoke-DoctorSelfCheck {
           (b) version.json matches the latest changelog header
           (c) every category in scripts/os/helpers/clean.ps1 catalog has a matching helper file
           (d) every keyword in install-keywords.json points to a real script ID / valid os:/profile: action
-              / a remote.* entry whose URL responds 200
+              / a remote.* entry whose URL responds 200 (or whose 'path' resolves to a real file)
+          (e) every pinned remote.<key>.sha256 still matches the live upstream body
+              -- full GET, hashed identically to run.ps1 (UTF-8 bytes of decoded string),
+                 expected vs actual printed on mismatch. Empty pins skipped.
+                 Path-based remotes are hashed from disk (not the network).
+        Sections (d) and (e) require network access. Pass -SkipNetwork to skip both
+        (e.g. on an air-gapped CI runner or when offline). Sections (a)-(c) always run.
         Prints a green/red table per row + per-section summaries + final tally.
     #>
+    param([switch]$SkipNetwork)
 
     Write-Host ""
     Write-Host "  Doctor -- Self-Check (deep audit)" -ForegroundColor Cyan
     Write-Host "  =================================" -ForegroundColor DarkGray
+    if ($SkipNetwork) {
+        Write-Host "  [ INFO ] " -ForegroundColor Cyan -NoNewline
+        Write-Host "--skip-network: sections (d) and (e) will be skipped (offline mode)"
+    }
     Write-Host ""
 
     $script:scPass = 0
