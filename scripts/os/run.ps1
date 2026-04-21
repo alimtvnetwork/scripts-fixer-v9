@@ -45,10 +45,21 @@ if (Test-SummaryJsonSwitch -Argv $Rest) {
 # --summary-tail N: same propagation pattern. Default tail is 20; override
 # with any non-negative integer (0 = totals only). Invalid value is ignored
 # (default kept). Strip both the flag and its value from $Rest.
+# --summary-tail-warn (opt-in): when set, an invalid --summary-tail value
+# triggers a yellow [ WARN ] line instead of being silently dropped.
+$wantsTailWarn = Test-SummaryTailWarnSwitch -Argv $Rest
+if ($wantsTailWarn) { $Rest = Remove-SummaryTailWarnSwitch -Argv $Rest }
 $summaryTailArg = Get-SummaryTailArg -Argv $Rest
 if ($null -ne $summaryTailArg) {
     $Rest = Remove-SummaryTailArg -Argv $Rest
     $env:REGTRACE_SUMMARY_TAIL = "$summaryTailArg"
+} elseif ($wantsTailWarn) {
+    # Invalid (or absent). Only warn if the flag was actually present.
+    $tailRaw = Get-SummaryTailRaw -Argv $Rest
+    if ($null -ne $tailRaw -and $tailRaw.Present) {
+        Write-SummaryTailWarning -RawInfo $tailRaw
+        $Rest = Remove-SummaryTailArg -Argv $Rest
+    }
 }
 
 $logMessages = $null
@@ -181,6 +192,9 @@ function Show-OsHelp {
     Write-Host "                              /summary-tail 50         (Windows slash style)" -ForegroundColor DarkGray
     Write-Host "                            Special: N=0 shows totals only (no tail lines)" -ForegroundColor DarkGray
     Write-Host "    --summary-json          Emit machine-readable JSON summary to stdout (for CI/piping)" -ForegroundColor DarkGray
+    Write-Host "    --summary-tail-warn     Opt-in: print [ WARN ] when --summary-tail value is invalid" -ForegroundColor DarkGray
+    Write-Host "                            (default behavior is silent fallback to 20 -- this flag" -ForegroundColor DarkGray
+    Write-Host "                             surfaces typos so they don't get lost in CI logs)" -ForegroundColor DarkGray
     Write-Host ""
     Write-Host "    VALID vs INVALID examples:" -ForegroundColor Cyan
     Write-Host "      VALID:  --summary-tail 50      -> 50 lines shown" -ForegroundColor DarkGray
@@ -193,6 +207,9 @@ function Show-OsHelp {
     Write-Host "      INVALID: --summary-tail abc     -> falls back to 20 (non-numeric)" -ForegroundColor DarkGray
     Write-Host "      INVALID: --summary-tail 3.5    -> falls back to 20 (decimals rejected)" -ForegroundColor DarkGray
     Write-Host "      INVALID: --summary-tail          -> falls back to 20 (missing value)" -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "    Add --summary-tail-warn to any of the INVALID examples to see a yellow [ WARN ]" -ForegroundColor DarkGray
+    Write-Host "    line explaining exactly why the value was dropped (negative / non-numeric / etc)." -ForegroundColor DarkGray
     Write-Host ""
     Write-Host "    Parity: human summary line count == JSON tail[] length (same formula)" -ForegroundColor DarkGray
     Write-Host "      - 0 ops recorded:    human shows 'no operations' notice; JSON tail=[]    (both 0)" -ForegroundColor DarkGray

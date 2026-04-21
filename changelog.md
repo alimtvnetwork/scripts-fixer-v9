@@ -2,6 +2,38 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.54.0] -- 2026-04-21
+
+### Added: opt-in `--summary-tail-warn` flag for surfacing invalid `--summary-tail` values
+
+Invalid `--summary-tail` values are still silently dropped by default (preserving CI pipeline stability), but you can now opt in to warnings when you want typos surfaced.
+
+**New flag**: `--summary-tail-warn` (also accepts `-summary-tail-warn`, `/summary-tail-warn`, case-insensitive). When set, an invalid `--summary-tail` value triggers a yellow `[ WARN ]` line explaining exactly why the value was rejected:
+
+```
+.\run.ps1 os clean --summary-tail abc --summary-tail-warn
+# [ WARN ] --summary-tail ignored: value 'abc' is not numeric. Falling back to default 20.
+#         Pass a non-negative integer (e.g. --summary-tail 50, =50, :50).
+```
+
+The reason text is specific:
+- `--summary-tail -1` -> "negative integers are not allowed (got '-1')"
+- `--summary-tail abc` -> "value 'abc' is not numeric"
+- `--summary-tail 3.5` -> "decimals are not allowed (got '3.5'); use an integer"
+- `--summary-tail` (missing value) -> "no value supplied after the flag"
+
+### Implementation
+
+- **`scripts/shared/registry-trace.ps1`** -- 4 new helpers:
+  - `Get-SummaryTailRaw` -- inspects `$Argv` and returns `@{Present, RawValue, Form}` so dispatchers can distinguish "flag absent" from "flag present with bad value"
+  - `Test-SummaryTailWarnSwitch` / `Remove-SummaryTailWarnSwitch` -- mirror the existing summary-json switch helpers
+  - `Write-SummaryTailWarning` -- emits the yellow `[ WARN ]` line with a precise reason
+- **`scripts/os/run.ps1`** -- dispatcher detects the warn switch first, strips it, then warns if `Get-SummaryTailArg` returned `$null` while the flag was actually present
+- **`scripts/os/helpers/clean-runner.ps1`** -- same wiring at the per-category dispatcher level so `os clean-<name>` invocations also honour the flag
+- **Help updated** in both `Show-OsHelp` and the `registry-trace.ps1` comment-based help, with a new "Opt-in surfacing" subsection and worked example
+
+Behavior with the flag absent is **unchanged** -- silent fallback to default 20 remains the default.
+
 ## [v0.53.5] -- 2026-04-21
 
 ### Documented: comprehensive `--summary-tail` syntax reference

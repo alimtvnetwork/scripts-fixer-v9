@@ -97,8 +97,19 @@
                 REGTRACE_SUMMARY_TAIL env  -> empty / unset
                 module default             -> $script:_RegTraceTailMax (20)
             Final value: 20 lines for BOTH the human summary and the JSON
-            `tail[]` array. No warning is printed -- the invalid arg is
-            silently ignored to avoid breaking pipelines.
+            `tail[]` array. By default no warning is printed -- the invalid
+            arg is silently ignored to avoid breaking pipelines.
+
+            Opt-in surfacing: pass --summary-tail-warn alongside an invalid
+            --summary-tail to print a yellow [ WARN ] line explaining
+            EXACTLY why the value was rejected (negative / non-numeric /
+            decimal / missing). Helpful for catching typos in CI configs.
+            Behavior is unchanged otherwise (still falls back to default 20).
+
+            Example:
+                .\run.ps1 os clean --summary-tail abc --summary-tail-warn
+                # [ WARN ] --summary-tail ignored: value 'abc' is not numeric.
+                #         Falling back to default 20.
 
             Worked examples:
                 --summary-tail -1   -> 20 (default, both outputs)
@@ -523,6 +534,116 @@ function Remove-SummaryTailArg {
         $i++
     }
     return ,$out.ToArray()
+}
+
+function Get-SummaryTailRaw {
+    <#
+    .SYNOPSIS
+        Inspect $Argv for --summary-tail and return the RAW value the user
+        typed (or $null if the flag is absent). Unlike Get-SummaryTailArg
+        this does NOT validate -- it lets the caller distinguish "flag not
+        present" from "flag present with bad value" so warnings can fire.
+
+    .OUTPUTS
+        Hashtable with keys:
+          Present  [bool]    : true if --summary-tail (any form) was found
+          RawValue [string]  : the literal value token (or "" if missing)
+          Form     [string]  : "equals" | "space" | "missing"
+        Returns $null if Argv is null/empty.
+    #>
+    param([string[]]$Argv)
+    if ($null -eq $Argv -or $Argv.Count -eq 0) { return $null }
+
+    $names = @("--summary-tail","-summary-tail","/summary-tail")
+    for ($i = 0; $i -lt $Argv.Count; $i++) {
+        $raw = "$($Argv[$i])"
+        $t   = $raw.Trim()
+        $low = $t.ToLower()
+
+        foreach ($n in $names) {
+            if ($low.StartsWith("$n=")) {
+                return @{
+                    Present  = $true
+                    RawValue = $t.Substring($n.Length + 1)
+                    Form     = "equals"
+                }
+            }
+        }
+        if ($low -in $names) {
+            $val = ""
+            if (($i + 1) -lt $Argv.Count) { $val = "$($Argv[$i + 1])" }
+            $form = if ($val -eq "") { "missing" } else { "space" }
+            return @{ Present = $true; RawValue = $val; Form = $form }
+        }
+    }
+    return $null
+}
+
+function Test-SummaryTailWarnSwitch {
+    <#
+    .SYNOPSIS
+        Recognise --summary-tail-warn / -summary-tail-warn / /summary-tail-warn
+        in $Argv. When set, dispatchers should emit a [ WARN ] line when the
+        --summary-tail value is invalid (instead of silently using default 20).
+    #>
+    param([string[]]$Argv)
+    if ($null -eq $Argv) { return $false }
+    foreach ($a in $Argv) {
+        $t = "$a".Trim().ToLower()
+        if ($t -in @("--summary-tail-warn","-summary-tail-warn","/summary-tail-warn")) { return $true }
+    }
+    return $false
+}
+
+function Remove-SummaryTailWarnSwitch {
+    <#
+    .SYNOPSIS
+        Strip --summary-tail-warn tokens from $Argv before forwarding to
+        child scripts that would reject the unknown switch.
+    #>
+    param([string[]]$Argv)
+    if ($null -eq $Argv) { return @() }
+    $out = New-Object System.Collections.ArrayList
+    foreach ($a in $Argv) {
+        $t = "$a".Trim().ToLower()
+        if ($t -in @("--summary-tail-warn","-summary-tail-warn","/summary-tail-warn")) { continue }
+        [void]$out.Add($a)
+    }
+    return ,$out.ToArray()
+}
+
+function Write-SummaryTailWarning {
+    <#
+    .SYNOPSIS
+        Print a yellow [ WARN ] line explaining why an invalid --summary-tail
+        value was ignored. Called by dispatchers ONLY when both:
+          1) --summary-tail-warn was passed, AND
+          2) --summary-tail was present but Get-SummaryTailArg returned $null
+
+    .PARAMETER RawInfo
+        The hashtable from Get-SummaryTailRaw (Present/RawValue/Form).
+    #>
+    param([Parameter(Mandatory)][hashtable]$RawInfo)
+    $val  = $RawInfo.RawValue
+    $form = $RawInfo.Form
+    $reason = switch ($true) {
+        ($form -eq "missing")           { "no value supplied after the flag" ; break }
+        ([string]::IsNullOrEmpty($val)) { "empty value" ; break }
+        default {
+            $parsed = 0
+            if ([int]::TryParse($val, [ref]$parsed)) {
+                if ($parsed -lt 0) { "negative integers are not allowed (got '$val')" }
+                else               { "value '$val' is not a non-negative integer" }
+            } elseif ($val -match '^-?\d+\.\d+$') {
+                "decimals are not allowed (got '$val'); use an integer"
+            } else {
+                "value '$val' is not numeric"
+            }
+        }
+    }
+    Write-Host "  [ WARN ] " -ForegroundColor Yellow -NoNewline
+    Write-Host "--summary-tail ignored: $reason. Falling back to default 20."
+    Write-Host "          Pass a non-negative integer (e.g. --summary-tail 50, =50, :50)." -ForegroundColor DarkGray
 }
 
 function Show-RegistryTraceSummaryJsonOutput {
