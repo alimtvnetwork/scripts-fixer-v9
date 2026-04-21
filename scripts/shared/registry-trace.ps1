@@ -40,6 +40,11 @@ $script:_RegTraceScript  = $null
 $script:_RegTraceCounts  = @{ OK = 0; FAIL = 0; SKIP = 0 }
 $script:_RegTraceTail    = New-Object System.Collections.Generic.Queue[string]
 $script:_RegTraceTailMax = 20
+# When $true, Close-RegistryTrace also emits a single-line JSON object to
+# stdout (machine-readable summary). Set via Set-RegistryTraceSummaryJson or
+# the env var REGTRACE_SUMMARY_JSON=1 (honoured at print time so a parent
+# dispatcher can flip it on for child invocations).
+$script:_RegTraceSummaryJson = $false
 
 function Initialize-RegistryTrace {
     <#
@@ -274,6 +279,117 @@ function Show-RegistryTraceSummary {
     }
 }
 
+function Set-RegistryTraceSummaryJson {
+    <#
+    .SYNOPSIS
+        Toggle machine-readable JSON summary emission to stdout at Close time.
+
+    .DESCRIPTION
+        When enabled, Close-RegistryTrace prints a single-line JSON object
+        with OK/FAIL/SKIP counts and the same summary lines that the
+        human-readable Show-RegistryTraceSummary block prints. Useful for
+        wrapping the script in CI or piping into jq.
+
+    .PARAMETER Enabled
+        $true to enable, $false to disable. Defaults to $true.
+    #>
+    param([bool]$Enabled = $true)
+    $script:_RegTraceSummaryJson = $Enabled
+}
+
+function Test-SummaryJsonSwitch {
+    <#
+    .SYNOPSIS
+        Same shape as Test-VerboseSwitch. Recognises --summary-json,
+        -summary-json, /summary-json in $Argv.
+    #>
+    param([string[]]$Argv)
+    if ($null -eq $Argv) { return $false }
+    foreach ($a in $Argv) {
+        $t = "$a".Trim().ToLower()
+        if ($t -in @("--summary-json","-summary-json","/summary-json")) { return $true }
+    }
+    return $false
+}
+
+function Remove-SummaryJsonSwitch {
+    <#
+    .SYNOPSIS
+        Returns a copy of $Argv with any --summary-json / -summary-json /
+        /summary-json tokens stripped. Use in dispatchers that splat $Argv
+        into child scripts which would otherwise reject the unknown flag.
+    #>
+    param([string[]]$Argv)
+    if ($null -eq $Argv) { return @() }
+    $out = New-Object System.Collections.ArrayList
+    foreach ($a in $Argv) {
+        $t = "$a".Trim().ToLower()
+        if ($t -in @("--summary-json","-summary-json","/summary-json")) { continue }
+        [void]$out.Add($a)
+    }
+    return ,$out.ToArray()
+}
+
+function Show-RegistryTraceSummaryJsonOutput {
+    <#
+    .SYNOPSIS
+        Emit a single-line JSON object describing the run to stdout.
+
+    .DESCRIPTION
+        Shape:
+          {
+            "script":   "<script-name>",
+            "logfile":  "<path or null>",
+            "verbose":  true|false,
+            "counts":   { "ok": N, "fail": N, "skip": N, "total": N },
+            "tail":     [ "<line>", ... up to 20 ],
+            "tailShown":N,
+            "tailMax":  20,
+            "timestamp":"<iso8601>"
+          }
+        Always written, even when no operations were recorded (counts all 0,
+        tail empty), so callers can rely on a single line of JSON per run.
+
+    .PARAMETER TailLines
+        How many recent lines to include. Defaults to 20.
+    #>
+    param([int]$TailLines = 20)
+
+    $counts = Get-RegistryTraceCounts
+    $hasTrace = $script:_RegTraceEnabled -and $script:_RegTracePath
+
+    $tailArr = @()
+    if ($null -ne $script:_RegTraceTail) {
+        $tailArr = @($script:_RegTraceTail.ToArray())
+    }
+    $start = [Math]::Max(0, $tailArr.Count - $TailLines)
+    $shown = New-Object System.Collections.ArrayList
+    for ($i = $start; $i -lt $tailArr.Count; $i++) {
+        [void]$shown.Add($tailArr[$i])
+    }
+
+    $payload = [ordered]@{
+        script    = $script:_RegTraceScript
+        logfile   = if ($hasTrace) { $script:_RegTracePath } else { $null }
+        verbose   = [bool]$script:_RegTraceEnabled
+        counts    = [ordered]@{
+            ok    = [int]$counts.OK
+            fail  = [int]$counts.FAIL
+            skip  = [int]$counts.SKIP
+            total = [int]$counts.Total
+        }
+        tail      = @($shown.ToArray())
+        tailShown = [int]$shown.Count
+        tailMax   = [int]$TailLines
+        timestamp = (Get-Date).ToString("o")
+    }
+
+    # -Compress = single line; safer for line-oriented consumers (jq -c, grep)
+    $json = $payload | ConvertTo-Json -Compress -Depth 5
+    # Marker prefix lets callers grep one line out of mixed stdout if needed.
+    Write-Output "REGTRACE_SUMMARY_JSON $json"
+}
+
 function Close-RegistryTrace {
     <#
     .SYNOPSIS
@@ -288,6 +404,22 @@ function Close-RegistryTrace {
     # Safe when -Verbose was not set: prints a one-line "no trace" notice.
     if (-not $NoSummary) {
         Show-RegistryTraceSummary -TailLines $script:_RegTraceTailMax
+    }
+
+    # Machine-readable JSON summary (--summary-json). Honour either the
+    # explicit module flag or the env-var fallback so a parent dispatcher can
+    # flip it on without modifying every helper.
+    $envOn = $false
+    try {
+        $envVal = [Environment]::GetEnvironmentVariable("REGTRACE_SUMMARY_JSON")
+        if (-not [string]::IsNullOrWhiteSpace($envVal)) {
+            $envOn = ($envVal -in @("1","true","yes","on"))
+        }
+    } catch { $envOn = $false }
+    $emitJson = $script:_RegTraceSummaryJson -or $envOn
+    if ($emitJson -and -not $NoSummary) {
+        try { Show-RegistryTraceSummaryJsonOutput -TailLines $script:_RegTraceTailMax }
+        catch { Write-Host "  [ WARN ] summary-json emit failed: $($_.Exception.Message)" -ForegroundColor Yellow }
     }
 
     $hasTrace = $script:_RegTraceEnabled -and $script:_RegTracePath
