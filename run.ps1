@@ -2261,16 +2261,20 @@ if ($hasCommand) {
         Show-VersionHeader
         # Detect --self-check flag in remaining args
         $isSelfCheck = $false
+        $isSkipNetwork = $false
         if ($null -ne $Install -and $Install.Count -gt 0) {
             foreach ($a in $Install) {
                 $low = "$a".Trim().ToLower()
                 if ($low -in @("--self-check", "-self-check", "selfcheck", "--selfcheck", "self-check")) {
                     $isSelfCheck = $true
                 }
+                if ($low -in @("--skip-network", "-skip-network", "skipnetwork", "--skipnetwork", "skip-network", "--offline", "-offline", "offline")) {
+                    $isSkipNetwork = $true
+                }
             }
         }
         if ($isSelfCheck) {
-            Invoke-DoctorSelfCheck
+            Invoke-DoctorSelfCheck -SkipNetwork:$isSkipNetwork
         } else {
             Invoke-DoctorCommand
         }
