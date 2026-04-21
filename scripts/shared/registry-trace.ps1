@@ -482,14 +482,16 @@ function Get-SummaryTailArg {
         $t   = $raw.Trim()
         $low = $t.ToLower()
 
-        # Form 1: --summary-tail=N
+        # Form 1: --summary-tail=N or --summary-tail:N (inline separator)
         foreach ($n in $names) {
-            if ($low.StartsWith("$n=")) {
-                $val = $t.Substring($n.Length + 1)
-                $parsed = 0
-                $ok = [int]::TryParse($val, [ref]$parsed)
-                if ($ok -and $parsed -ge 0) { return $parsed }
-                return $null
+            foreach ($sep in @("=", ":")) {
+                if ($low.StartsWith("$n$sep")) {
+                    $val = $t.Substring($n.Length + $sep.Length)
+                    $parsed = 0
+                    $ok = [int]::TryParse($val, [ref]$parsed)
+                    if ($ok -and $parsed -ge 0) { return $parsed }
+                    return $null
+                }
             }
         }
 
@@ -511,7 +513,8 @@ function Remove-SummaryTailArg {
     .SYNOPSIS
         Returns a copy of $Argv with the --summary-tail flag (and its
         value, when supplied as the next arg) stripped. Mirrors
-        Remove-SummaryJsonSwitch.
+        Remove-SummaryJsonSwitch. Handles --summary-tail=N, --summary-tail:N,
+        and --summary-tail N forms.
     #>
     param([string[]]$Argv)
     if ($null -eq $Argv) { return @() }
@@ -522,11 +525,13 @@ function Remove-SummaryTailArg {
         $raw = "$($Argv[$i])"
         $low = $raw.Trim().ToLower()
 
-        $isEqualsForm = $false
+        $isInlineForm = $false
         foreach ($n in $names) {
-            if ($low.StartsWith("$n=")) { $isEqualsForm = $true; break }
+            if ($low.StartsWith("$n=") -or $low.StartsWith("$n:")) {
+                $isInlineForm = $true; break
+            }
         }
-        if ($isEqualsForm) { $i++; continue }
+        if ($isInlineForm) { $i++; continue }
 
         if ($low -in $names) {
             # Skip the flag AND the following value token if present and
@@ -556,9 +561,15 @@ function Get-SummaryTailRaw {
 
     .OUTPUTS
         Hashtable with keys:
-          Present  [bool]    : true if --summary-tail (any form) was found
-          RawValue [string]  : the literal value token (or "" if missing)
-          Form     [string]  : "equals" | "space" | "missing"
+          Present   [bool]   : true if --summary-tail (any form) was found
+          RawValue  [string] : the literal value token (or "" if missing)
+          Form      [string] : "equals" | "colon" | "space" | "missing"
+          Token     [string] : the EXACT verbatim flag token the user typed,
+                               preserving original casing/prefix/separator
+                               (e.g. "--summary-tail=", "/summary-tail:",
+                               "--Summary-Tail" for space form). Used in the
+                               warning message so the user immediately knows
+                               which arg position to fix.
         Returns $null if Argv is null/empty.
     #>
     param([string[]]$Argv)
@@ -570,20 +581,31 @@ function Get-SummaryTailRaw {
         $t   = $raw.Trim()
         $low = $t.ToLower()
 
+        # Inline forms: --summary-tail=N or --summary-tail:N
         foreach ($n in $names) {
-            if ($low.StartsWith("$n=")) {
-                return @{
-                    Present  = $true
-                    RawValue = $t.Substring($n.Length + 1)
-                    Form     = "equals"
+            foreach ($sep in @("=", ":")) {
+                if ($low.StartsWith("$n$sep")) {
+                    $prefix = $t.Substring(0, $n.Length + $sep.Length)  # verbatim w/ user's casing
+                    return @{
+                        Present  = $true
+                        RawValue = $t.Substring($n.Length + $sep.Length)
+                        Form     = if ($sep -eq "=") { "equals" } else { "colon" }
+                        Token    = $prefix
+                    }
                 }
             }
         }
+        # Space form: --summary-tail N (value in next slot, may be missing)
         if ($low -in $names) {
             $val = ""
             if (($i + 1) -lt $Argv.Count) { $val = "$($Argv[$i + 1])" }
             $form = if ($val -eq "") { "missing" } else { "space" }
-            return @{ Present = $true; RawValue = $val; Form = $form }
+            return @{
+                Present  = $true
+                RawValue = $val
+                Form     = $form
+                Token    = $t  # verbatim flag token, casing preserved
+            }
         }
     }
     return $null
@@ -673,29 +695,53 @@ function Write-SummaryTailWarning {
           2) --summary-tail was present but Get-SummaryTailArg returned $null
 
     .PARAMETER RawInfo
-        The hashtable from Get-SummaryTailRaw (Present/RawValue/Form).
+        The hashtable from Get-SummaryTailRaw (Present/RawValue/Form/Token).
+        The Token field is the verbatim flag token the user typed (e.g.
+        "--summary-tail=", "/summary-tail:", "--Summary-Tail") so the warning
+        can echo it back exactly, helping users grep their own command line.
     #>
     param([Parameter(Mandatory)][hashtable]$RawInfo)
-    $val  = $RawInfo.RawValue
-    $form = $RawInfo.Form
+    $val   = $RawInfo.RawValue
+    $form  = $RawInfo.Form
+    $token = if ($RawInfo.ContainsKey("Token") -and -not [string]::IsNullOrEmpty($RawInfo.Token)) {
+                 $RawInfo.Token
+             } else {
+                 "--summary-tail"  # fallback for older callers
+             }
+
+    # Build a form-specific reason that names the EXACT token the user typed.
+    # This matters most for empty/missing cases where there's no value to echo.
     $reason = switch ($true) {
-        ($form -eq "missing")           { "no value supplied after the flag" ; break }
-        ([string]::IsNullOrEmpty($val)) { "empty value" ; break }
+        ($form -eq "missing") {
+            "flag '$token' supplied with no value after it"; break
+        }
+        ($form -eq "equals" -and [string]::IsNullOrEmpty($val)) {
+            "flag '$token' has an empty value (nothing after the '=')"; break
+        }
+        ($form -eq "colon" -and [string]::IsNullOrEmpty($val)) {
+            "flag '$token' has an empty value (nothing after the ':')"; break
+        }
+        ([string]::IsNullOrEmpty($val)) {
+            "flag '$token' has an empty value"; break
+        }
         default {
             $parsed = 0
             if ([int]::TryParse($val, [ref]$parsed)) {
-                if ($parsed -lt 0) { "negative integers are not allowed (got '$val')" }
-                else               { "value '$val' is not a non-negative integer" }
+                if ($parsed -lt 0) { "'$token$val' rejected -- negative integers are not allowed" }
+                else               { "'$token$val' rejected -- value '$val' is not a non-negative integer" }
             } elseif ($val -match '^-?\d+\.\d+$') {
-                "decimals are not allowed (got '$val'); use an integer"
+                "'$token$val' rejected -- decimals are not allowed; use an integer"
             } else {
-                "value '$val' is not numeric"
+                "'$token$val' rejected -- value '$val' is not numeric"
             }
         }
     }
+
     Write-Host "  [ WARN ] " -ForegroundColor Yellow -NoNewline
     Write-Host "--summary-tail ignored: $reason. Falling back to default 20."
-    Write-Host "          Pass a non-negative integer (e.g. --summary-tail 50, =50, :50)." -ForegroundColor DarkGray
+    Write-Host "          Accepted forms: --summary-tail 50  |  --summary-tail=50  |  --summary-tail:50" -ForegroundColor DarkGray
+    Write-Host "                          (case-insensitive; -summary-tail and /summary-tail also work)" -ForegroundColor DarkGray
+}
 }
 
 function Show-RegistryTraceSummaryJsonOutput {
