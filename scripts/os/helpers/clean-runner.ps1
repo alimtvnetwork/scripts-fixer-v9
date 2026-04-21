@@ -54,10 +54,20 @@ if (Test-Path -LiteralPath $verboseTracePath) {
     # summary prints (default 20, 0 = totals only). Strip both the flag and
     # its value from $Argv before forwarding; propagate via env so the
     # spawned category helper's Close-RegistryTrace honours it.
+    # --summary-tail-warn (opt-in): emit a [ WARN ] when an invalid value
+    # is dropped, instead of silently falling back to default 20.
+    $wantsTailWarn = Test-SummaryTailWarnSwitch -Argv $Argv
+    if ($wantsTailWarn) { $Argv = Remove-SummaryTailWarnSwitch -Argv $Argv }
     $summaryTailArg = Get-SummaryTailArg -Argv $Argv
     if ($null -ne $summaryTailArg) {
         $Argv = Remove-SummaryTailArg -Argv $Argv
         $env:REGTRACE_SUMMARY_TAIL = "$summaryTailArg"
+    } elseif ($wantsTailWarn) {
+        $tailRaw = Get-SummaryTailRaw -Argv $Argv
+        if ($null -ne $tailRaw -and $tailRaw.Present) {
+            Write-SummaryTailWarning -RawInfo $tailRaw
+            $Argv = Remove-SummaryTailArg -Argv $Argv
+        }
     }
 }
 

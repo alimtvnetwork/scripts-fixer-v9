@@ -45,10 +45,21 @@ if (Test-SummaryJsonSwitch -Argv $Rest) {
 # --summary-tail N: same propagation pattern. Default tail is 20; override
 # with any non-negative integer (0 = totals only). Invalid value is ignored
 # (default kept). Strip both the flag and its value from $Rest.
+# --summary-tail-warn (opt-in): when set, an invalid --summary-tail value
+# triggers a yellow [ WARN ] line instead of being silently dropped.
+$wantsTailWarn = Test-SummaryTailWarnSwitch -Argv $Rest
+if ($wantsTailWarn) { $Rest = Remove-SummaryTailWarnSwitch -Argv $Rest }
 $summaryTailArg = Get-SummaryTailArg -Argv $Rest
 if ($null -ne $summaryTailArg) {
     $Rest = Remove-SummaryTailArg -Argv $Rest
     $env:REGTRACE_SUMMARY_TAIL = "$summaryTailArg"
+} elseif ($wantsTailWarn) {
+    # Invalid (or absent). Only warn if the flag was actually present.
+    $tailRaw = Get-SummaryTailRaw -Argv $Rest
+    if ($null -ne $tailRaw -and $tailRaw.Present) {
+        Write-SummaryTailWarning -RawInfo $tailRaw
+        $Rest = Remove-SummaryTailArg -Argv $Rest
+    }
 }
 
 $logMessages = $null
