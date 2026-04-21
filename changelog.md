@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.54.2] -- 2026-04-21
+
+### Added: GitHub Actions CI example in `os --help`
+
+New "CI EXAMPLE" section in `Show-OsHelp` demonstrates how `--summary-tail-warn` catches typos in workflow variables before they cause silent fallbacks. Includes a complete `.github/workflows/cleanup.yml` snippet, a worked typo scenario (`vars.TAIL_LINES = '5O'`), and a one-liner `grep` recipe to fail the job on bad config.
+
+- **`scripts/os/run.ps1`** `Show-OsHelp`: appended a new "CI EXAMPLE -- catch typos in GitHub Actions" block after the "TRY IT" section. The snippet shows:
+  - Full workflow YAML using `pwsh` shell, `actions/checkout@v4`, and `Tee-Object` to capture `summary.json`
+  - Side-by-side comparison: silent fallback (no warn flag) vs visible `[ WARN ]` line (with warn flag)
+  - How to confirm the resolution path via the new `tailSource` field (`default` vs `env`)
+  - Optional `grep` recipe to convert the warning into a fail-fast CI check
+
+Documentation only; no runtime behavior changes.
+
 ## [v0.54.1] -- 2026-04-21
 
 ### Added: "effective tail" line in summary header
