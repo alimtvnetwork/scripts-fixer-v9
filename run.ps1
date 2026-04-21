@@ -1542,22 +1542,41 @@ function Invoke-DoctorSelfCheck {
                 $validIds[$prop.Name] = $true
             }
 
-            # Probe remote URLs ONCE and cache
+            # Probe remote URLs ONCE and cache. Path-based remotes (v0.47.1+)
+            # skip HTTP probing and instead validate the local file exists.
             $remoteCache = @{}
             if ($null -ne $kwData.remote) {
                 foreach ($rprop in $kwData.remote.PSObject.Properties) {
                     $rkey = $rprop.Name
-                    $rurl = $rprop.Value.url
-                    $code = -1
-                    try {
-                        $resp = Invoke-WebRequest -Uri $rurl -Method Head -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
-                        $code = [int]$resp.StatusCode
-                    } catch {
-                        if ($null -ne $_.Exception.Response -and $null -ne $_.Exception.Response.StatusCode) {
-                            $code = [int]$_.Exception.Response.StatusCode
+                    $rval = $rprop.Value
+                    $hasRPath = $rval.PSObject.Properties['path'] -and -not [string]::IsNullOrWhiteSpace("$($rval.path)")
+                    $hasRUrl  = $rval.PSObject.Properties['url']  -and -not [string]::IsNullOrWhiteSpace("$($rval.url)")
+                    if ($hasRPath) {
+                        $relPath = "$($rval.path)".Trim()
+                        $absPath = Join-Path $RootDir $relPath
+                        $existsLocal = Test-Path -LiteralPath $absPath
+                        $remoteCache[$rkey] = @{
+                            Url   = "file:///$($absPath -replace '\\','/')"
+                            Code  = if ($existsLocal) { 200 } else { 404 }
+                            Ok    = $existsLocal
+                            Kind  = "path"
+                            Path  = $absPath
                         }
+                    } elseif ($hasRUrl) {
+                        $rurl = "$($rval.url)".Trim()
+                        $code = -1
+                        try {
+                            $resp = Invoke-WebRequest -Uri $rurl -Method Head -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
+                            $code = [int]$resp.StatusCode
+                        } catch {
+                            if ($null -ne $_.Exception.Response -and $null -ne $_.Exception.Response.StatusCode) {
+                                $code = [int]$_.Exception.Response.StatusCode
+                            }
+                        }
+                        $remoteCache[$rkey] = @{ Url = $rurl; Code = $code; Ok = ($code -eq 200); Kind = "url" }
+                    } else {
+                        $remoteCache[$rkey] = @{ Url = "(none)"; Code = 0; Ok = $false; Kind = "missing" }
                     }
-                    $remoteCache[$rkey] = @{ Url = $rurl; Code = $code; Ok = ($code -eq 200) }
                 }
             }
 
@@ -1580,9 +1599,19 @@ function Invoke-DoctorSelfCheck {
                             $rc = $remoteCache[$rk]
                             if (-not $rc.Ok) {
                                 $allOk = $false
-                                [void]$details.Add("remote:$rk -> HTTP $($rc.Code) for $($rc.Url)")
+                                if ($rc.Kind -eq "path") {
+                                    [void]$details.Add("remote:$rk -> local file MISSING: $($rc.Path)")
+                                } elseif ($rc.Kind -eq "missing") {
+                                    [void]$details.Add("remote:$rk -> entry has neither 'url' nor 'path'")
+                                } else {
+                                    [void]$details.Add("remote:$rk -> HTTP $($rc.Code) for $($rc.Url)")
+                                }
                             } else {
-                                [void]$details.Add("remote:$rk 200")
+                                if ($rc.Kind -eq "path") {
+                                    [void]$details.Add("remote:$rk local-OK")
+                                } else {
+                                    [void]$details.Add("remote:$rk 200")
+                                }
                             }
                         }
                     } elseif ($tStr -match '^os:(.+)$') {
@@ -2338,18 +2367,25 @@ if ($hasInstallKeywords) {
         $isRemote = $entry.Kind -eq "remote"
         if ($isRemote) {
             # Stream a remote PowerShell installer via 'Invoke-RestMethod | Invoke-Expression'
-            $url   = $entry.Url
-            $label = $entry.Label
+            # OR (v0.47.1+) read a repo-local wrapper script from disk when 'path' is set.
+            $url       = $entry.Url
+            $localPath = $entry.LocalPath
+            $hasLocal  = -not [string]::IsNullOrWhiteSpace($localPath)
+            $hasUrl    = -not [string]::IsNullOrWhiteSpace($url)
+            $label     = $entry.Label
             $expectedSha = $entry.Sha256
             $hasExpectedSha = -not [string]::IsNullOrWhiteSpace($expectedSha)
             $hasLabel = -not [string]::IsNullOrWhiteSpace($label)
             $displayLabel = if ($hasLabel) { $label } else { $entry.Key }
 
+            $sourceDescription = if ($hasLocal) { "local: $localPath" } else { $url }
+            $commandHint       = if ($hasLocal) { "Get-Content '$localPath' -Raw | iex" } else { "irm $url | iex" }
+
             Write-Host ""
             Write-Host "  ----- Remote: $($entry.Key) -----" -ForegroundColor Cyan
             Write-Host "  $displayLabel" -ForegroundColor DarkGray
-            Write-Host "  Source: $url" -ForegroundColor DarkGray
-            Write-Host "  Command: irm $url | iex" -ForegroundColor DarkGray
+            Write-Host "  Source : $sourceDescription" -ForegroundColor DarkGray
+            Write-Host "  Command: $commandHint" -ForegroundColor DarkGray
             if ($hasExpectedSha) {
                 Write-Host "  SHA256 : $expectedSha (pinned -- verified before exec)" -ForegroundColor DarkGray
             } else {
@@ -2360,45 +2396,59 @@ if ($hasInstallKeywords) {
             $remoteFailed = $false
             $remoteError  = $null
             try {
-                $script = Invoke-RestMethod -Uri $url -UseBasicParsing -ErrorAction Stop
-                $isScriptEmpty = [string]::IsNullOrWhiteSpace($script)
-                if ($isScriptEmpty) {
-                    $remoteFailed = $true
-                    $remoteError  = "Remote URL returned an empty body"
+                if ($hasLocal) {
+                    $isLocalMissing = -not (Test-Path -LiteralPath $localPath)
+                    if ($isLocalMissing) {
+                        $remoteFailed = $true
+                        $remoteError  = "Local wrapper not found on disk. Path: $localPath  (referenced by install-keywords.json -> remote.$($entry.Key).path)"
+                        $script = $null
+                    } else {
+                        $script = Get-Content -LiteralPath $localPath -Raw -ErrorAction Stop
+                    }
                 } else {
-                    # ── SHA256 integrity check (CODE RED: never exec unverified body) ──
-                    $isHashMismatch = $false
-                    if ($hasExpectedSha) {
-                        try {
-                            $bytes = [System.Text.Encoding]::UTF8.GetBytes("$script")
-                            $sha = [System.Security.Cryptography.SHA256]::Create()
-                            $hashBytes = $sha.ComputeHash($bytes)
-                            $sha.Dispose()
-                            $actualSha = ([System.BitConverter]::ToString($hashBytes) -replace '-', '').ToLowerInvariant()
-                        } catch {
-                            $remoteFailed = $true
-                            $remoteError  = "SHA256 computation failed: $($_.Exception.Message)"
-                            $isHashMismatch = $true
-                        }
-                        if (-not $remoteFailed) {
-                            $isMatch = $actualSha -eq $expectedSha
-                            if (-not $isMatch) {
-                                $isHashMismatch = $true
+                    $script = Invoke-RestMethod -Uri $url -UseBasicParsing -ErrorAction Stop
+                }
+                if (-not $remoteFailed) {
+                    $isScriptEmpty = [string]::IsNullOrWhiteSpace($script)
+                    if ($isScriptEmpty) {
+                        $remoteFailed = $true
+                        $remoteError  = if ($hasLocal) { "Local wrapper is empty: $localPath" } else { "Remote URL returned an empty body" }
+                    } else {
+                        # ── SHA256 integrity check (CODE RED: never exec unverified body) ──
+                        $isHashMismatch = $false
+                        if ($hasExpectedSha) {
+                            try {
+                                $bytes = [System.Text.Encoding]::UTF8.GetBytes("$script")
+                                $sha = [System.Security.Cryptography.SHA256]::Create()
+                                $hashBytes = $sha.ComputeHash($bytes)
+                                $sha.Dispose()
+                                $actualSha = ([System.BitConverter]::ToString($hashBytes) -replace '-', '').ToLowerInvariant()
+                            } catch {
                                 $remoteFailed = $true
-                                $remoteError  = "SHA256 mismatch -- refusing to execute unverified body. Expected: $expectedSha  Actual: $actualSha  URL: $url  Pin source: install-keywords.json -> remote.$($entry.Key).sha256"
-                            } else {
-                                Write-Host "  [  OK  ] " -ForegroundColor Green -NoNewline
-                                Write-Host "SHA256 verified ($actualSha)"
+                                $remoteError  = "SHA256 computation failed: $($_.Exception.Message)"
+                                $isHashMismatch = $true
+                            }
+                            if (-not $remoteFailed) {
+                                $isMatch = $actualSha -eq $expectedSha
+                                if (-not $isMatch) {
+                                    $isHashMismatch = $true
+                                    $remoteFailed = $true
+                                    $pinSrc = "install-keywords.json -> remote.$($entry.Key).sha256"
+                                    $remoteError  = "SHA256 mismatch -- refusing to execute unverified body. Expected: $expectedSha  Actual: $actualSha  Source: $sourceDescription  Pin source: $pinSrc"
+                                } else {
+                                    Write-Host "  [  OK  ] " -ForegroundColor Green -NoNewline
+                                    Write-Host "SHA256 verified ($actualSha)"
+                                }
                             }
                         }
-                    }
 
-                    if (-not $isHashMismatch) {
-                        Invoke-Expression $script
-                        $code = $LASTEXITCODE
-                        if ($null -ne $code -and $code -ne 0) {
-                            $remoteFailed = $true
-                            $remoteError  = "Remote installer exited with code $code"
+                        if (-not $isHashMismatch) {
+                            Invoke-Expression $script
+                            $code = $LASTEXITCODE
+                            if ($null -ne $code -and $code -ne 0) {
+                                $remoteFailed = $true
+                                $remoteError  = "Remote installer exited with code $code"
+                            }
                         }
                     }
                 }
@@ -2411,7 +2461,7 @@ if ($hasInstallKeywords) {
                 Write-Host ""
                 Write-Host "  [ FAIL ] " -ForegroundColor Red -NoNewline
                 Write-Host "Remote installer '$($entry.Key)' failed."
-                Write-Host "          URL    : $url" -ForegroundColor DarkGray
+                Write-Host "          Source : $sourceDescription" -ForegroundColor DarkGray
                 Write-Host "          Reason : $remoteError" -ForegroundColor DarkGray
                 $failCount++
             } else {
