@@ -513,7 +513,8 @@ function Remove-SummaryTailArg {
     .SYNOPSIS
         Returns a copy of $Argv with the --summary-tail flag (and its
         value, when supplied as the next arg) stripped. Mirrors
-        Remove-SummaryJsonSwitch.
+        Remove-SummaryJsonSwitch. Handles --summary-tail=N, --summary-tail:N,
+        and --summary-tail N forms.
     #>
     param([string[]]$Argv)
     if ($null -eq $Argv) { return @() }
@@ -524,11 +525,13 @@ function Remove-SummaryTailArg {
         $raw = "$($Argv[$i])"
         $low = $raw.Trim().ToLower()
 
-        $isEqualsForm = $false
+        $isInlineForm = $false
         foreach ($n in $names) {
-            if ($low.StartsWith("$n=")) { $isEqualsForm = $true; break }
+            if ($low.StartsWith("$n=") -or $low.StartsWith("$n:")) {
+                $isInlineForm = $true; break
+            }
         }
-        if ($isEqualsForm) { $i++; continue }
+        if ($isInlineForm) { $i++; continue }
 
         if ($low -in $names) {
             # Skip the flag AND the following value token if present and
@@ -558,9 +561,15 @@ function Get-SummaryTailRaw {
 
     .OUTPUTS
         Hashtable with keys:
-          Present  [bool]    : true if --summary-tail (any form) was found
-          RawValue [string]  : the literal value token (or "" if missing)
-          Form     [string]  : "equals" | "space" | "missing"
+          Present   [bool]   : true if --summary-tail (any form) was found
+          RawValue  [string] : the literal value token (or "" if missing)
+          Form      [string] : "equals" | "colon" | "space" | "missing"
+          Token     [string] : the EXACT verbatim flag token the user typed,
+                               preserving original casing/prefix/separator
+                               (e.g. "--summary-tail=", "/summary-tail:",
+                               "--Summary-Tail" for space form). Used in the
+                               warning message so the user immediately knows
+                               which arg position to fix.
         Returns $null if Argv is null/empty.
     #>
     param([string[]]$Argv)
@@ -572,20 +581,31 @@ function Get-SummaryTailRaw {
         $t   = $raw.Trim()
         $low = $t.ToLower()
 
+        # Inline forms: --summary-tail=N or --summary-tail:N
         foreach ($n in $names) {
-            if ($low.StartsWith("$n=")) {
-                return @{
-                    Present  = $true
-                    RawValue = $t.Substring($n.Length + 1)
-                    Form     = "equals"
+            foreach ($sep in @("=", ":")) {
+                if ($low.StartsWith("$n$sep")) {
+                    $prefix = $t.Substring(0, $n.Length + $sep.Length)  # verbatim w/ user's casing
+                    return @{
+                        Present  = $true
+                        RawValue = $t.Substring($n.Length + $sep.Length)
+                        Form     = if ($sep -eq "=") { "equals" } else { "colon" }
+                        Token    = $prefix
+                    }
                 }
             }
         }
+        # Space form: --summary-tail N (value in next slot, may be missing)
         if ($low -in $names) {
             $val = ""
             if (($i + 1) -lt $Argv.Count) { $val = "$($Argv[$i + 1])" }
             $form = if ($val -eq "") { "missing" } else { "space" }
-            return @{ Present = $true; RawValue = $val; Form = $form }
+            return @{
+                Present  = $true
+                RawValue = $val
+                Form     = $form
+                Token    = $t  # verbatim flag token, casing preserved
+            }
         }
     }
     return $null
