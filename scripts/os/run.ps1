@@ -31,6 +31,16 @@ $categoriesDir = Join-Path $scriptDir "helpers\clean-categories"
 
 . (Join-Path $sharedDir "logging.ps1")
 . (Join-Path $sharedDir "json-utils.ps1")
+. (Join-Path $sharedDir "registry-trace.ps1")
+
+# --summary-json is a global os-level flag: strip it from $Rest before
+# splatting (child helpers reject unknown args) and propagate to children
+# via env so Close-RegistryTrace emits a JSON summary line at run end.
+if (Test-SummaryJsonSwitch -Argv $Rest) {
+    $Rest = Remove-SummaryJsonSwitch -Argv $Rest
+    $env:REGTRACE_SUMMARY_JSON = "1"
+    Set-RegistryTraceSummaryJson -Enabled $true
+}
 
 $logMessages = $null
 $logMessagesPath = Join-Path $scriptDir "log-messages.json"
