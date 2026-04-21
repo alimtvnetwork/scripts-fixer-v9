@@ -66,7 +66,16 @@ Write-Host ""
 
 $r = $null
 try {
-    $r = & $helperPath -DryRun:$dryRun -Yes:$autoYes -Days $days -Verbose:$isVerbose
+    # Only forward -Verbose to helpers that declare [CmdletBinding()] (currently
+    # explorer-mru). Splatting an empty hashtable is a no-op for non-cmdlet
+    # helpers, so this is the safest universal forwarding pattern.
+    $verboseSplat = @{}
+    if ($isVerbose) {
+        $firstLine = Get-Content -LiteralPath $helperPath -TotalCount 12 -ErrorAction SilentlyContinue
+        $hasCmdletBinding = ($firstLine -join "`n") -match '\[CmdletBinding\(\)\]'
+        if ($hasCmdletBinding) { $verboseSplat['Verbose'] = $true }
+    }
+    $r = & $helperPath -DryRun:$dryRun -Yes:$autoYes -Days $days @verboseSplat
     if ($r -is [array]) {
         $r = $r | Where-Object { $_ -is [hashtable] -or $_ -is [System.Collections.Specialized.OrderedDictionary] } | Select-Object -Last 1
     }
