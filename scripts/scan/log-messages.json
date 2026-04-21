@@ -1,0 +1,33 @@
+{
+  "scriptName": "Scan: VS Code Project Manager Sync",
+  "helpHeader": "Scan a directory and sync discovered projects into the VS Code Project Manager projects.json file.",
+  "helpUsage": [
+    ".\\run.ps1 scan <root-path>",
+    ".\\run.ps1 scan <root-path> --depth 4",
+    ".\\run.ps1 scan <root-path> --dry-run",
+    ".\\run.ps1 scan <root-path> --json C:\\custom\\projects.json",
+    ".\\run.ps1 scan --help"
+  ],
+  "messages": {
+    "rootMissing": "Root path does not exist: {path}",
+    "rootResolved": "Root: {path}",
+    "targetResolved": "Target JSON: {path}",
+    "targetCreated": "Created empty projects.json at: {path}",
+    "targetReadFailed": "Failed to read projects.json at {path} -- {error}",
+    "targetWriteFailed": "Failed to write projects.json at {path} -- {error}",
+    "targetWritten": "Wrote {count} entries to: {path}",
+    "dryRun": "Dry-run: no changes written.",
+    "discovered": "Discovered project: {path}",
+    "added": "Added: {name}  ({path})",
+    "updated": "Updated: {name}  ({path})",
+    "noop": "No change: {name}  ({path})",
+    "summaryHeader": "Summary",
+    "summaryDiscovered": "  discovered : {count}",
+    "summaryAdded": "  added      : {count}",
+    "summaryUpdated": "  updated    : {count}",
+    "summaryNoop": "  unchanged  : {count}",
+    "summaryPreserved": "  preserved  : {count}    (existing entries we did not touch)",
+    "summaryWritten": "  written to : {path}",
+    "scanComplete": "Scan complete."
+  }
+}
