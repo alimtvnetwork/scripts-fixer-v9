@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.53.2] -- 2026-04-21
+
+### Documented: parity behavior between human summary and `--summary-json` tail
+
+Following a parity audit (no code drift found), the help text now explicitly documents how the two output channels behave under edge conditions, so users running CI scrapers know what to expect.
+
+- **`scripts/shared/registry-trace.ps1`** comment-based help: new "Parity guarantees" subsection covering three edge cases:
+  1. Zero recorded operations -- human notice vs `tail: []`, both 0 lines.
+  2. `REGTRACE_SUMMARY_TAIL` greater than the 20-line internal buffer cap -- both outputs clamp to `min(request, buffer)`.
+  3. Negative or non-numeric values -- both fall back to default of 20.
+- **`scripts/os/run.ps1`** `Show-OsHelp`: condensed parity note added under the REGISTRY TRACE FLAGS block (3 bullet points covering the same edge cases).
+
+No behavioral changes -- documentation only.
+
 ## [v0.53.1] -- 2026-04-21
 
 ### Added: `--summary-tail` usage documentation
