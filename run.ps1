@@ -2171,6 +2171,7 @@ if ($hasCommand) {
     $isBareInstallCommand = $normalizedCommand -eq "install"
     $isBareUpdateCommand  = $normalizedCommand -eq "update" -or $normalizedCommand -eq "choco-update" -or $normalizedCommand -eq "upgrade"
     $isBarePathCommand    = $normalizedCommand -eq "path"
+    $isBareScanCommand    = $normalizedCommand -eq "scan"
     $isBareExportCommand  = $normalizedCommand -eq "export"
     $isBareStatusCommand  = $normalizedCommand -eq "status"
     $isBareDoctorCommand  = $normalizedCommand -eq "doctor"
