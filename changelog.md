@@ -2,6 +2,36 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.51.0] -- 2026-04-21
+
+### Added: end-of-run registry-trace summary (last 20 lines + OK/FAIL/SKIP totals)
+
+Every script that uses the verbose registry-trace helper (`os flp`, `os clean-explorer-mru`, plus any future caller) now ends with a one-command summary block printed to the host **and** appended to the trace logfile:
+
+```
+  Registry trace summary
+  ----------------------
+    last 20 of 47 trace line(s):
+      [2026-04-21 14:32:11.482] [SET         ] [OK  ] HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem :: LongPathsEnabled  old=<null>  new=1
+      [2026-04-21 14:32:11.501] [GET         ] [OK  ] HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem :: LongPathsEnabled  value=1  reason=post-write verification
+      ...
+
+    totals: OK=44  FAIL=1  SKIP=2  (total 47)
+    full log: C:\dev\.logs\os-fix-long-path-registry-trace.log
+```
+
+#### Implementation: `scripts/shared/registry-trace.ps1`
+
+- New module-scoped state: `$script:_RegTraceCounts = @{ OK; FAIL; SKIP }` and a `Queue[string]` ring buffer `$script:_RegTraceTail` capped at `$script:_RegTraceTailMax = 20`. Both are reset inside `Initialize-RegistryTrace` so each run starts clean.
+- `Write-RegistryTrace` now tallies the `Status` and pushes the formatted line onto the tail queue **before** the disk write. Counters survive even if the disk write fails and the trace then disables itself -- the summary still reflects what was attempted.
+- New `Get-RegistryTraceCounts` -- returns `@{ OK; FAIL; SKIP; Total }` for programmatic callers.
+- New `Show-RegistryTraceSummary [-TailLines 20]` -- prints the boxed summary to host with per-status colouring (`OK`=green, `FAIL`=red, `SKIP`=yellow), then mirrors the same block into the trace logfile so the file stays self-describing. Safe when `-Verbose` was never set: prints a single dim-grey "pass `-Verbose` to enable" notice and returns.
+- `Close-RegistryTrace` now invokes `Show-RegistryTraceSummary` automatically before the existing footer write. Adds a `-NoSummary` switch for the rare caller that wants to suppress it. **No changes required in `longpath.ps1` or `explorer-mru.ps1`** -- they already call `Close-RegistryTrace` at every exit point, so the summary fires for free on every code path including the early-return / verify-mismatch / exception branches.
+
+#### Files changed
+
+- **Updated**: `scripts/shared/registry-trace.ps1`, `scripts/version.json` (0.50.0 -> 0.51.0)
+
 ## [v0.50.0] -- 2026-04-21
 
 ### Added: `run.ps1 scan <path>` -- VS Code Project Manager projects.json sync

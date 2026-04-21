@@ -36,6 +36,10 @@
 $script:_RegTraceEnabled = $false
 $script:_RegTracePath    = $null
 $script:_RegTraceScript  = $null
+# Counters + tail buffer for the end-of-run summary
+$script:_RegTraceCounts  = @{ OK = 0; FAIL = 0; SKIP = 0 }
+$script:_RegTraceTail    = New-Object System.Collections.Generic.Queue[string]
+$script:_RegTraceTailMax = 20
 
 function Initialize-RegistryTrace {
     <#
@@ -60,6 +64,9 @@ function Initialize-RegistryTrace {
 
     $script:_RegTraceEnabled = $VerboseEnabled
     $script:_RegTraceScript  = $ScriptName
+    # Reset counters + tail buffer for this run
+    $script:_RegTraceCounts  = @{ OK = 0; FAIL = 0; SKIP = 0 }
+    $script:_RegTraceTail    = New-Object System.Collections.Generic.Queue[string]
 
     if (-not $VerboseEnabled) { return }
 
@@ -162,6 +169,15 @@ function Write-RegistryTrace {
         $line += "  reason=$Reason"
     }
 
+    # Tally + remember tail (always, even if disk write fails afterwards)
+    if ($script:_RegTraceCounts.ContainsKey($Status)) {
+        $script:_RegTraceCounts[$Status]++
+    }
+    [void]$script:_RegTraceTail.Enqueue($line)
+    while ($script:_RegTraceTail.Count -gt $script:_RegTraceTailMax) {
+        [void]$script:_RegTraceTail.Dequeue()
+    }
+
     try {
         Add-Content -LiteralPath $script:_RegTracePath -Value $line -Encoding UTF8
     } catch {
@@ -171,12 +187,109 @@ function Write-RegistryTrace {
     }
 }
 
+function Get-RegistryTraceCounts {
+    <#
+    .SYNOPSIS
+        Returns a hashtable @{ OK = N; FAIL = N; SKIP = N; Total = N } for the
+        current run. Available even when -Verbose was not set (all zeros).
+    #>
+    $c = $script:_RegTraceCounts
+    return @{
+        OK    = [int]$c.OK
+        FAIL  = [int]$c.FAIL
+        SKIP  = [int]$c.SKIP
+        Total = [int]($c.OK + $c.FAIL + $c.SKIP)
+    }
+}
+
+function Show-RegistryTraceSummary {
+    <#
+    .SYNOPSIS
+        Print the last <=20 trace lines and the OK/FAIL/SKIP totals to the
+        host. Also appended to the trace logfile (when enabled). Safe to call
+        when -Verbose was not set: prints a one-line "no operations" notice
+        and returns.
+
+    .PARAMETER TailLines
+        How many recent lines to show. Defaults to 20.
+    #>
+    param([int]$TailLines = 20)
+
+    $counts = Get-RegistryTraceCounts
+    $hasTrace = $script:_RegTraceEnabled -and $script:_RegTracePath
+    $hasOps   = $counts.Total -gt 0
+
+    Write-Host ""
+    Write-Host "  Registry trace summary" -ForegroundColor Cyan
+    Write-Host "  ----------------------" -ForegroundColor DarkGray
+
+    if (-not $hasOps) {
+        if ($hasTrace) {
+            Write-Host "    no registry operations recorded this run" -ForegroundColor DarkGray
+        } else {
+            Write-Host "    -Verbose not set; no trace collected (pass -Verbose to enable)" -ForegroundColor DarkGray
+        }
+        Write-Host ""
+        return
+    }
+
+    # Print tail (most-recent-last)
+    $maxShow = [Math]::Min($TailLines, $script:_RegTraceTail.Count)
+    Write-Host "    last $maxShow of $($counts.Total) trace line(s):" -ForegroundColor DarkGray
+    $tailArr = @($script:_RegTraceTail.ToArray())
+    $start = [Math]::Max(0, $tailArr.Count - $TailLines)
+    for ($i = $start; $i -lt $tailArr.Count; $i++) {
+        $ln = $tailArr[$i]
+        $color = "Gray"
+        if     ($ln -match '\[FAIL\]') { $color = "Red" }
+        elseif ($ln -match '\[SKIP\]') { $color = "Yellow" }
+        elseif ($ln -match '\[OK\s*\]') { $color = "Green" }
+        Write-Host "      $ln" -ForegroundColor $color
+    }
+
+    Write-Host ""
+    Write-Host ("    totals: OK={0}  FAIL={1}  SKIP={2}  (total {3})" -f `
+        $counts.OK, $counts.FAIL, $counts.SKIP, $counts.Total) -ForegroundColor Cyan
+    if ($hasTrace) {
+        Write-Host "    full log: $($script:_RegTracePath)" -ForegroundColor DarkGray
+    }
+    Write-Host ""
+
+    # Mirror the summary into the trace logfile so it stays self-describing
+    if ($hasTrace) {
+        $block = @()
+        $block += ""
+        $block += "  --- summary (last $maxShow of $($counts.Total)) ---"
+        for ($i = $start; $i -lt $tailArr.Count; $i++) {
+            $block += "    " + $tailArr[$i]
+        }
+        $block += ("  totals: OK={0}  FAIL={1}  SKIP={2}  (total {3})" -f `
+            $counts.OK, $counts.FAIL, $counts.SKIP, $counts.Total)
+        $block += ""
+        try {
+            Add-Content -LiteralPath $script:_RegTracePath -Value ($block -join [Environment]::NewLine) -Encoding UTF8
+        } catch {
+            Write-Host "  [ WARN ] Could not append summary to $($script:_RegTracePath): $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+    }
+}
+
 function Close-RegistryTrace {
     <#
     .SYNOPSIS
         Append a footer with a one-line summary. Optional; safe if no trace.
     #>
-    param([string]$Status = "ok")
+    param(
+        [string]$Status = "ok",
+        [switch]$NoSummary
+    )
+
+    # Always print the one-command summary (last 20 + totals) unless suppressed.
+    # Safe when -Verbose was not set: prints a one-line "no trace" notice.
+    if (-not $NoSummary) {
+        Show-RegistryTraceSummary -TailLines $script:_RegTraceTailMax
+    }
+
     $hasTrace = $script:_RegTraceEnabled -and $script:_RegTracePath
     if (-not $hasTrace) { return }
     $footer = @(
