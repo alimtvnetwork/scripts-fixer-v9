@@ -279,7 +279,17 @@ function Close-RegistryTrace {
     .SYNOPSIS
         Append a footer with a one-line summary. Optional; safe if no trace.
     #>
-    param([string]$Status = "ok")
+    param(
+        [string]$Status = "ok",
+        [switch]$NoSummary
+    )
+
+    # Always print the one-command summary (last 20 + totals) unless suppressed.
+    # Safe when -Verbose was not set: prints a one-line "no trace" notice.
+    if (-not $NoSummary) {
+        Show-RegistryTraceSummary -TailLines $script:_RegTraceTailMax
+    }
+
     $hasTrace = $script:_RegTraceEnabled -and $script:_RegTracePath
     if (-not $hasTrace) { return }
     $footer = @(
