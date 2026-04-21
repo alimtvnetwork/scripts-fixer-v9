@@ -87,6 +87,11 @@ $script:CleanCatalog = @(
     @{ B = "F"; Cat = "pnpm-store";          Desc = "pnpm CAS store (.pnpm-store + LOCALAPPDATA pnpm; runtime SAFE)" },
     @{ B = "F"; Cat = "deno-cache";          Desc = "Deno DENO_DIR (deps/gen/npm/registries; runtime SAFE)" },
     @{ B = "F"; Cat = "rustup-toolchains";   Desc = "Stale rustup toolchains >--days N (active + pinned SAFE)" },
+    @{ B = "F"; Cat = "pyenv-cache";         Desc = "pyenv-win download cache + per-version pip caches (interpreters SAFE)" },
+    @{ B = "F"; Cat = "nvm-cache";           Desc = "nvm-windows tmp + per-version npm caches (Node versions SAFE)" },
+    @{ B = "F"; Cat = "volta-cache";         Desc = "Volta installer + tarball cache (pinned tools SAFE)" },
+    @{ B = "F"; Cat = "asdf-cache";          Desc = "asdf downloads + stale installs >--days N (active SAFE)" },
+    @{ B = "F"; Cat = "mise-cache";          Desc = "mise cache + downloads (installed tools + shims SAFE)" },
     @{ B = "F"; Cat = "npm-cache";           Desc = "npm cache clean --force" },
     @{ B = "F"; Cat = "pip-cache";           Desc = "pip cache purge" },
     @{ B = "F"; Cat = "docker-dangling";     Desc = "docker system prune -f" },
@@ -105,7 +110,7 @@ function Show-OsHelp {
     Write-Host ""
     Write-Host "  PRIMARY ACTIONS" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "    clean [flags]                                          Run all 54 cleanup categories" -ForegroundColor Green
+    Write-Host "    clean [flags]                                          Run all 59 cleanup categories" -ForegroundColor Green
     Write-Host "      --yes                Auto-consent destructive categories" -ForegroundColor DarkGray
     Write-Host "      --dry-run            Report only (no deletions, no consent file written)" -ForegroundColor DarkGray
     Write-Host "      --skip <a,b,c>       Skip listed categories" -ForegroundColor DarkGray
