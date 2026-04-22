@@ -83,6 +83,13 @@ try {
         $isExeMissing = -not $vsCodeExe
         if ($isExeMissing) { $skippedCount++; continue }
 
+        # Resolve repo root (parent of scripts/) for confirm-launch wrapper
+        $repoRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)
+        $confirmCfg = $null
+        if ($config.PSObject.Properties.Name -contains 'confirmBeforeLaunch') {
+            $confirmCfg = $config.confirmBeforeLaunch
+        }
+
         # Write each of the three targets
         $isAllOk = $true
         foreach ($target in @('file', 'directory', 'background')) {
@@ -94,6 +101,8 @@ try {
                 -Label           $editionCfg.label `
                 -VsCodeExe       $vsCodeExe `
                 -CommandTemplate $cmdTpl `
+                -RepoRoot        $repoRoot `
+                -ConfirmCfg      $confirmCfg `
                 -LogMsgs         $logMessages
             if (-not $ok) { $isAllOk = $false }
         }
