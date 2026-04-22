@@ -3,12 +3,12 @@
   "enabled": true,
   "enabledEditions": ["stable", "insiders"],
   "confirmBeforeLaunch": {
-    "_comment": "Optional: route every leaf through scripts/shared/confirm-launch.ps1 (same helper script 53 uses). When 'enabled' is true, the install writer wraps each commandTemplates.<target> in a pwsh call to Invoke-ConfirmedLaunch with the configured countdown. The VS Code exe ends up as the ExtraArgs payload so the helper invokes it after the countdown. Set 'enabled': false (default) to keep the current direct-launch behavior unchanged.",
+    "_comment": "Optional: route every leaf through scripts/shared/confirm-launch.ps1 (Invoke-ConfirmedCommand variant -- same countdown / Ctrl+C / any-key behavior script 53 uses). When 'enabled' is true the install writer wraps each commandTemplates.<target> with a pwsh launcher that runs the countdown then dispatches the original VS Code command unchanged via cmd.exe /c. Set 'enabled': false (default) to keep direct-launch behavior.",
     "enabled": false,
     "countdownSeconds": 5,
     "shellPreferred": "pwsh",
     "shellLegacyPath": "%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-    "wrapperTemplate": "\"{shellExe}\" -NoExit -ExecutionPolicy Bypass -Command \". '{repoRoot}\\scripts\\shared\\confirm-launch.ps1'; Invoke-ConfirmedLaunch -RepoRoot '{repoRoot}' -ScriptId '54' -ScriptLabel '{leafLabel}' -CountdownSeconds {countdown} -ExtraArgs @('--exec','{innerCommand}')"
+    "wrapperTemplate": "\"{shellExe}\" -NoProfile -ExecutionPolicy Bypass -Command \". '{repoRoot}\\scripts\\shared\\confirm-launch.ps1'; Invoke-ConfirmedCommand -CommandLine '{innerCommand}' -Label '{leafLabel}' -CountdownSeconds {countdown}"
   },
   "editions": {
     "stable": {
