@@ -78,7 +78,7 @@ function Register-VsCodeMenuEntry {
     $rawCmd = $CommandTemplate -replace '\{exe\}', $VsCodeExe
     $cmdLine = $rawCmd
 
-    $isConfirmEnabled = ($null -ne $ConfirMCfg) -and ($ConfirmCfg.PSObject.Properties.Name -contains 'enabled') -and $ConfirmCfg.enabled
+    $isConfirmEnabled = ($null -ne $ConfirmCfg) -and ($ConfirmCfg.PSObject.Properties.Name -contains 'enabled') -and $ConfirmCfg.enabled
     if ($isConfirmEnabled) {
         $shellExe = Resolve-ConfirmShellExe -Preferred $ConfirmCfg.shellPreferred -LegacyPath $ConfirmCfg.shellLegacyPath
         $isShellMissing = -not $shellExe
