@@ -25,11 +25,44 @@ function ConvertTo-RegExePath {
     return ($p -replace '^HKEY_CLASSES_ROOT', 'HKCR')
 }
 
+function Resolve-ConfirmShellExe {
+    <#
+    .SYNOPSIS
+        Best-effort lookup of pwsh.exe (preferred) then powershell.exe.
+        Mirrors script 53's resolver but kept self-contained so script 54
+        does not depend on script 53's helpers.
+    #>
+    param(
+        [string]$Preferred = "pwsh",
+        [string]$LegacyPath = "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+    )
+    if ($Preferred -eq "pwsh") {
+        $cmd = Get-Command pwsh -ErrorAction SilentlyContinue
+        if ($cmd) { return $cmd.Source }
+        foreach ($p in @(
+            "$env:ProgramFiles\PowerShell\7\pwsh.exe",
+            "$env:ProgramFiles\PowerShell\6\pwsh.exe",
+            "$env:LOCALAPPDATA\Microsoft\WindowsApps\pwsh.exe"
+        )) {
+            if (Test-Path -LiteralPath $p) { return $p }
+        }
+    }
+    $legacy = [System.Environment]::ExpandEnvironmentVariables($LegacyPath)
+    if (Test-Path -LiteralPath $legacy) { return $legacy }
+    return $null
+}
+
 function Register-VsCodeMenuEntry {
     <#
     .SYNOPSIS
         Writes a single context menu entry: parent key with (Default)+Icon,
         and a \command subkey with the command line.
+
+    .PARAMETER ConfirmCfg
+        Optional config.confirmBeforeLaunch block. When .enabled is true the
+        raw command line is wrapped in a pwsh call to Invoke-ConfirmedLaunch
+        (the same helper used by script 53). When omitted or disabled, the
+        direct command line from the template is written unchanged.
     #>
     param(
         [string]$TargetName,         # "file" | "directory" | "background"
@@ -37,10 +70,34 @@ function Register-VsCodeMenuEntry {
         [string]$Label,              # menu label
         [string]$VsCodeExe,          # resolved exe path
         [string]$CommandTemplate,    # template with {exe}
+        [string]$RepoRoot,           # repo root for confirm-launch wrapper
+        $ConfirmCfg,                 # optional confirmBeforeLaunch block
         $LogMsgs
     )
 
-    $cmdLine = $CommandTemplate -replace '\{exe\}', $VsCodeExe
+    $rawCmd = $CommandTemplate -replace '\{exe\}', $VsCodeExe
+    $cmdLine = $rawCmd
+
+    $isConfirmEnabled = ($null -ne $ConfirmCfg) -and ($ConfirmCfg.PSObject.Properties.Name -contains 'enabled') -and $ConfirmCfg.enabled
+    if ($isConfirmEnabled) {
+        $shellExe = Resolve-ConfirmShellExe -Preferred $ConfirmCfg.shellPreferred -LegacyPath $ConfirmCfg.shellLegacyPath
+        $isShellMissing = -not $shellExe
+        if ($isShellMissing) {
+            Write-Log ("confirmBeforeLaunch enabled but no PowerShell exe resolved -- falling back to direct launch for: " + $RegistryPath) -Level "warn"
+        } else {
+            $leafLabel = "$Label ($TargetName)"
+            $wrapped = $ConfirmCfg.wrapperTemplate
+            $wrapped = $wrapped -replace '\{shellExe\}',     [Regex]::Escape($shellExe).Replace('\','\\')
+            $wrapped = $wrapped -replace '\{repoRoot\}',     [Regex]::Escape($RepoRoot).Replace('\','\\')
+            $wrapped = $wrapped -replace '\{leafLabel\}',    $leafLabel
+            $wrapped = $wrapped -replace '\{countdown\}',    [string]$ConfirmCfg.countdownSeconds
+            $wrapped = $wrapped -replace '\{innerCommand\}', ($rawCmd -replace "'", "''")
+            # Undo the escape doubling -- we only escaped to satisfy the regex replacement engine
+            $wrapped = $wrapped -replace '\\\\', '\'
+            $cmdLine = $wrapped
+        }
+    }
+
     Write-Log (($LogMsgs.messages.writingTarget -replace '\{target\}', $TargetName) -replace '\{path\}', $RegistryPath) -Level "info"
     Write-Log ($LogMsgs.messages.writingCommand -replace '\{command\}', $cmdLine) -Level "info"
 
