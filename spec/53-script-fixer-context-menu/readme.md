@@ -1,6 +1,6 @@
 # Specification: Script Fixer Context Menu (script 53)
 
-> **Status:** Implemented in `scripts/53-script-fixer-context-menu/` as of project version **v0.56.0**. This document is the authoritative design contract — any future change to the script must update this spec first.
+> **Status:** Implemented in `scripts/53-script-fixer-context-menu/` as of project version **v0.56.0**. Dual-leaf confirmation prompt + Shift-bypass added in **v0.58.0** (§7.4 + §17). Reusable wrapper extended to script 54 in **v0.59.0** (§7.4.3). This document is the authoritative design contract — any future change to the script must update this spec first.
 
 ---
 
@@ -451,7 +451,7 @@ Manual acceptance checklist (no automated harness — registry side effects):
 | F4 | Per-user installation | Mirror layout under `HKCU\Software\Classes` |
 | F5 | Modern Win 11 context menu | Build a packaged sparse-signed shell extension (much larger scope) |
 | F6 | Auto-refresh hook on version bump | Tie into a project-wide post-bump task |
-| F7 | Optional confirmation prompt before launch | New `confirmBeforeLaunch` config flag |
+| ~~F7~~ | ~~Optional confirmation prompt before launch~~ | **Shipped in v0.58.0** -- see §7.4 / §17. |
 | F8 | Logging the launch event | Each leaf could append to `logs/menu-launches.jsonl` before invoking `run.ps1` |
 
 ---

@@ -2,6 +2,46 @@
 
 All notable changes to this project are documented in this file.
 
+## [v0.59.0] -- 2026-04-22
+
+### Added: opt-in confirmation prompt for the VS Code menu (script 54) + spec sync for script 53
+
+Script 54 ("Open with Code" installer) can now route every leaf through the same `scripts/shared/confirm-launch.ps1` helper that script 53 uses, gated by its own `confirmBeforeLaunch` config block. Disabled by default to preserve the zero-latency direct launch most users expect from "Open with Code".
+
+### New shared API
+
+`scripts/shared/confirm-launch.ps1` gains `Invoke-ConfirmedCommand` -- a sibling of `Invoke-ConfirmedLaunch` that runs an arbitrary command line (not just `run.ps1 -I <id>`) after the same countdown / Ctrl+C / any-key contract. Lets any future menu opt in regardless of whether it dispatches via the project's run.ps1 or invokes a tool directly.
+
+### Configuration (`scripts/54-vscode-menu-installer/config.json`)
+
+New block (defaults shown):
+
+```json
+"confirmBeforeLaunch": {
+  "enabled": false,
+  "countdownSeconds": 5,
+  "shellPreferred": "pwsh",
+  "shellLegacyPath": "%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+  "wrapperTemplate": "\"{shellExe}\" -NoProfile -ExecutionPolicy Bypass -Command \". '{repoRoot}\\scripts\\shared\\confirm-launch.ps1'; Invoke-ConfirmedCommand -CommandLine '{innerCommand}' -Label '{leafLabel}' -CountdownSeconds {countdown}"
+}
+```
+
+When `enabled: true`, every "Open with Code" registry leaf is rewritten to call the wrapper instead of launching VS Code directly. When `enabled: false` (default), the existing direct-launch command lines are written unchanged -- zero behavior change for current users.
+
+### Spec sync
+
+`spec/53-script-fixer-context-menu/readme.md` updated:
+- §7.4 now documents the dual-leaf shape (default leaf + Shift-bypass twin), the new placeholders (`{leafLabel}`, `{countdown}`), and the `confirmBeforeLaunch` block.
+- §7.4.3 added: documents how script 54 (and any future menu) reuses the shared helper.
+- §17 (Test Plan) expanded from 7 to 14 cases covering countdown, Ctrl+C cancel, any-key skip, Shift-bypass visibility, `Extended` registry value verification, `emitBypassLeaves: false`, and `confirmBeforeLaunch.enabled: false` legacy single-leaf mode.
+
+### Behavior unchanged
+
+- Script 53 dual-leaf behavior (v0.58.0) is unchanged.
+- Script 54 default behavior is unchanged (still single direct-launch leaf per target unless the user opts in).
+
+
+
 ## [v0.58.0] -- 2026-04-21
 
 ### Added: confirmation prompt with Shift-click bypass for the Script Fixer menu (script 53)
