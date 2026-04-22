@@ -125,3 +125,84 @@ function Invoke-ConfirmedLaunch {
     Set-Location -LiteralPath $RepoRoot
     & $runPs1 -I $ScriptId @ExtraArgs
 }
+
+function Invoke-ConfirmedCommand {
+    <#
+    .SYNOPSIS
+        Sibling of Invoke-ConfirmedLaunch for callers that already have a
+        fully-formed command line (e.g. script 54 launching VS Code directly,
+        not the project dispatcher). Same countdown / Ctrl+C / any-key
+        behavior, no -I dispatch.
+
+    .PARAMETER CommandLine
+        The full command to run after the countdown. Executed via cmd.exe /c
+        so quoting matches what Explorer would have run.
+
+    .PARAMETER Label
+        Friendly label shown in the prompt.
+
+    .PARAMETER CountdownSeconds
+        Seconds to wait before auto-proceeding. <= 0 means "no prompt".
+
+    .PARAMETER Bypass
+        Skip the countdown entirely.
+    #>
+    param(
+        [Parameter(Mandatory)] [string]$CommandLine,
+        [string]$Label = "command",
+        [int]$CountdownSeconds = 5,
+        [switch]$Bypass
+    )
+
+    $isBypass = $Bypass.IsPresent -or ($CountdownSeconds -le 0)
+
+    Write-Host ""
+    Write-Host "============================================================" -ForegroundColor DarkCyan
+    Write-Host (" Script Fixer launcher (generic)") -ForegroundColor Cyan
+    Write-Host (" Target  : {0}" -f $Label)       -ForegroundColor White
+    Write-Host (" Command : {0}" -f $CommandLine) -ForegroundColor DarkGray
+    Write-Host "============================================================" -ForegroundColor DarkCyan
+
+    if (-not $isBypass) {
+        Write-Host ""
+        Write-Host (" Auto-proceeding in {0}s. Press Ctrl+C to cancel, any key to skip." -f $CountdownSeconds) -ForegroundColor Yellow
+
+        $isCancelled = $false
+        try {
+            for ($remaining = $CountdownSeconds; $remaining -gt 0; $remaining--) {
+                Write-Host (" -> {0}..." -f $remaining) -ForegroundColor Yellow -NoNewline
+                $isKeyPressed = $false
+                for ($i = 0; $i -lt 10; $i++) {
+                    if ([Console]::KeyAvailable) {
+                        [void][Console]::ReadKey($true)
+                        $isKeyPressed = $true
+                        break
+                    }
+                    Start-Sleep -Milliseconds 100
+                }
+                Write-Host ""
+                if ($isKeyPressed) {
+                    Write-Host " Key pressed -- proceeding now." -ForegroundColor Green
+                    break
+                }
+            }
+        } catch {
+            $isCancelled = $true
+        }
+
+        if ($isCancelled) {
+            Write-Host ""
+            Write-Host " Cancelled by user -- command NOT executed." -ForegroundColor Red
+            return
+        }
+    } else {
+        Write-Host ""
+        Write-Host " Bypass mode -- proceeding immediately (no prompt)." -ForegroundColor DarkGreen
+    }
+
+    Write-Host ""
+    Write-Host (" Launching {0}..." -f $Label) -ForegroundColor Green
+    Write-Host ""
+
+    & cmd.exe /c $CommandLine
+}

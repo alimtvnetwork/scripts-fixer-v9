@@ -1,6 +1,6 @@
 # Specification: Script Fixer Context Menu (script 53)
 
-> **Status:** Implemented in `scripts/53-script-fixer-context-menu/` as of project version **v0.56.0**. This document is the authoritative design contract — any future change to the script must update this spec first.
+> **Status:** Implemented in `scripts/53-script-fixer-context-menu/` as of project version **v0.56.0**. Dual-leaf confirmation prompt + Shift-bypass added in **v0.58.0** (§7.4 + §17). Reusable wrapper extended to script 54 in **v0.59.0** (§7.4.3). This document is the authoritative design contract — any future change to the script must update this spec first.
 
 ---
 
@@ -182,24 +182,62 @@ And the `command` subkey:
 |-----------------|-------|----------------|
 | `<leaf>\command` | `(Default)` | See § 7.4 |
 
-### 7.4 Command line template
+### 7.4 Command line template (dual-leaf, v0.58.0+)
 
-`config.shell.commandTemplate` (default):
+As of **v0.58.0**, every script gets **two** leaves under the same cascading parent:
+
+1. **Default leaf** — runs through `scripts/shared/confirm-launch.ps1::Invoke-ConfirmedLaunch`, which shows a 5-second countdown (Ctrl+C cancels, any key proceeds immediately).
+2. **Bypass leaf** — same target, suffix `" (no prompt -- Shift)"`, carries the registry value `Extended=""` so Windows hides it unless the user holds **SHIFT** while right-clicking.
+
+Both templates live in `config.shell` and both ultimately call the shared helper:
 
 ```text
-"{shellExe}" -NoExit -ExecutionPolicy Bypass -Command "Set-Location -LiteralPath '{repoRoot}'; & '.\run.ps1' -I {scriptId}"
+# config.shell.commandTemplate (default leaf)
+"{shellExe}" -NoExit -ExecutionPolicy Bypass -Command ". '{repoRoot}\scripts\shared\confirm-launch.ps1'; Invoke-ConfirmedLaunch -RepoRoot '{repoRoot}' -ScriptId '{scriptId}' -ScriptLabel '{leafLabel}' -CountdownSeconds {countdown}"
+
+# config.shell.bypassCommandTemplate (Shift-only leaf -- adds -Bypass)
+"{shellExe}" -NoExit -ExecutionPolicy Bypass -Command ". '{repoRoot}\scripts\shared\confirm-launch.ps1'; Invoke-ConfirmedLaunch -RepoRoot '{repoRoot}' -ScriptId '{scriptId}' -ScriptLabel '{leafLabel}' -Bypass"
 ```
 
 Placeholders are substituted at install time:
 
-| Placeholder   | Source                                      |
-|---------------|----------------------------------------------|
-| `{shellExe}`  | Output of `Resolve-ShellExe` (absolute path) |
-| `{repoRoot}`  | Resolved at install time from `run.ps1`'s location (parent of `scripts/`) |
-| `{scriptId}`  | The numeric ID from `registry.json` (e.g. `52`) |
+| Placeholder    | Source                                                                  |
+|----------------|--------------------------------------------------------------------------|
+| `{shellExe}`   | Output of `Resolve-ShellExe` (absolute path)                             |
+| `{repoRoot}`   | Resolved at install time from `run.ps1`'s location (parent of `scripts/`)|
+| `{scriptId}`   | The numeric ID from `registry.json` (e.g. `52`)                          |
+| `{leafLabel}`  | `"NN -- pretty-folder-name"` -- shown in the helper's "Target:" header   |
+| `{countdown}`  | `config.confirmBeforeLaunch.countdownSeconds` (default `5`)              |
 
-Rationale for `-NoExit`: keeps the terminal open after the script finishes so
-the user can read output (success or failure).
+Rationale for `-NoExit`: keeps the terminal open after the script finishes (or after a cancel) so the user can read the output. Rationale for the dual-leaf shape: discoverability without ceremony — the safety net is the default, the power user holds Shift to skip it.
+
+#### 7.4.1 `confirmBeforeLaunch` config block
+
+```json
+"confirmBeforeLaunch": {
+  "enabled": true,
+  "countdownSeconds": 5,
+  "emitBypassLeaves": true,
+  "bypassLabelSuffix": " (no prompt -- Shift)",
+  "bypassSubkeySuffix": "-NoPrompt"
+}
+```
+
+| Key | Effect |
+|-----|--------|
+| `enabled` | Master switch. `false` -> single-leaf legacy mode (direct dispatcher call, no countdown). |
+| `countdownSeconds` | Seconds before auto-proceed in the default leaf. `<= 0` is treated as bypass. |
+| `emitBypassLeaves` | When `true`, each script gets a Shift-only twin. `false` -> only the default leaf is written. |
+| `bypassLabelSuffix` | Appended to the bypass leaf's visible label. |
+| `bypassSubkeySuffix` | Appended to the bypass leaf's registry subkey name (kept distinct so the two leaves never collide). |
+
+#### 7.4.2 Shift-to-reveal mechanism
+
+The bypass leaf is written with the registry value `Extended = ""` (REG_SZ, empty). Windows' classic context-menu code path hides any `shell\<verb>` entry carrying that value unless **SHIFT** is held during the right-click. No DLL, no shell extension -- pure registry behavior documented since Vista.
+
+#### 7.4.3 Reuse from other menus (script 54+)
+
+`Invoke-ConfirmedLaunch` (and its sibling `Invoke-ConfirmedCommand` for arbitrary, non-dispatcher commands) is the **single source of truth** for "ask first, then run" across every menu in this repo. Script 54 (VS Code menu installer) opts in via its own `confirmBeforeLaunch` block in `scripts/54-vscode-menu-installer/config.json` -- when `enabled: true`, every "Open with Code" leaf is wrapped in a pwsh call to `Invoke-ConfirmedCommand` with the configured countdown. Disabled by default (v0.59.0) to preserve direct-launch latency.
 
 ---
 
@@ -364,22 +402,42 @@ Manual acceptance checklist (no automated harness — registry side effects):
 2. **Categories present**
    - "Databases" submenu lists every `install-<dbms>` script, sorted by ID.
    - Singleton categories appear at top level (e.g. one-off scripts), not as one-item submenus.
-3. **Leaf launch**
-   - Click a leaf → UAC prompt → terminal opens → `run.ps1 -I <id>` runs → terminal stays open after completion.
-4. **Refresh after edit**
+3. **Leaf launch (default, with countdown)** — v0.58.0+
+   - Click a leaf → UAC prompt → terminal opens → header banner appears with `Target` / `Repo` / `Command`.
+   - Countdown line "Auto-proceeding in 5s. Press Ctrl+C to cancel, any key to skip." prints.
+   - Wait through the full countdown → `run.ps1 -I <id>` runs → terminal stays open after completion.
+4. **Leaf launch (skip countdown)**
+   - Click a default leaf → press any key during the countdown → "Key pressed -- proceeding now." → script runs immediately.
+5. **Leaf launch (cancel countdown)**
+   - Click a default leaf → press Ctrl+C during the countdown → "Cancelled by user -- script NOT executed." → script does NOT run, terminal stays open with `-NoExit`.
+6. **Shift-bypass leaf is hidden by default**
+   - Right-click without holding Shift → only the default leaf for each script is visible (e.g. `52 -- vscode-folder-repair`).
+   - The `(no prompt -- Shift)` twin must NOT appear.
+7. **Shift-bypass leaf is revealed with Shift**
+   - Hold **SHIFT** and right-click → both leaves now appear under the same cascading parent (e.g. `52 -- vscode-folder-repair` and `52 -- vscode-folder-repair (no prompt -- Shift)`).
+   - Click the bypass leaf → UAC prompt → terminal opens → "Bypass mode -- proceeding immediately (no prompt)." → script runs without any countdown.
+8. **Bypass leaf registry shape**
+   - In `regedit`, navigate to any leaf's bypass twin (subkey ends in `-NoPrompt`) → confirm `Extended` value exists, type REG_SZ, value empty.
+   - Confirm the default twin does NOT have an `Extended` value.
+9. **Refresh after edit**
    - Add a fake script to `registry.json` (e.g. `"99": "99-test"`).
-   - Run `.\run.ps1 -I 53 refresh` → new entry appears.
-5. **Uninstall**
-   - Run `.\run.ps1 -I 53 uninstall`.
-   - Right-click everywhere → menu absent.
-   - `.installed/` + `.resolved/53-script-fixer-context-menu/` records removed.
-6. **Idempotency**
-   - Run `install` twice in a row → no errors, identical registry state.
-   - Run `uninstall` on a clean system → returns success, logs `wipeNothingToDo`.
-7. **Failure paths**
-   - Rename `version.json` → install logs warning + uses `vunknown`.
-   - Rename `registry.json` → install aborts with exact path in error.
-   - Run as non-admin → aborts with admin message.
+   - Run `.\run.ps1 -I 53 refresh` → both default leaf and bypass leaf appear for `99`.
+10. **Uninstall**
+    - Run `.\run.ps1 -I 53 uninstall`.
+    - Right-click everywhere (with and without Shift) → menu absent in both states.
+    - `.installed/` + `.resolved/53-script-fixer-context-menu/` records removed.
+11. **Idempotency**
+    - Run `install` twice in a row → no errors, identical registry state, both leaves intact under each script.
+    - Run `uninstall` on a clean system → returns success, logs `wipeNothingToDo`.
+12. **`emitBypassLeaves: false`**
+    - Edit `config.confirmBeforeLaunch.emitBypassLeaves` to `false` → run `refresh` → only default leaves are written; Shift+right-click reveals nothing extra.
+13. **`confirmBeforeLaunch.enabled: false` (legacy single-leaf mode)**
+    - Set `enabled: false` → run `refresh` → exactly one leaf per script, no countdown header, command line dispatches `run.ps1 -I <id>` directly.
+14. **Failure paths**
+    - Rename `version.json` → install logs warning + uses `vunknown`.
+    - Rename `registry.json` → install aborts with exact path in error.
+    - Run as non-admin → aborts with admin message.
+    - Delete `scripts/shared/confirm-launch.ps1` after install → click a default leaf → terminal opens, dot-source line errors out with the exact missing path (CODE RED rule satisfied), terminal stays open.
 
 ---
 
@@ -393,7 +451,7 @@ Manual acceptance checklist (no automated harness — registry side effects):
 | F4 | Per-user installation | Mirror layout under `HKCU\Software\Classes` |
 | F5 | Modern Win 11 context menu | Build a packaged sparse-signed shell extension (much larger scope) |
 | F6 | Auto-refresh hook on version bump | Tie into a project-wide post-bump task |
-| F7 | Optional confirmation prompt before launch | New `confirmBeforeLaunch` config flag |
+| ~~F7~~ | ~~Optional confirmation prompt before launch~~ | **Shipped in v0.58.0** -- see §7.4 / §17. |
 | F8 | Logging the launch event | Each leaf could append to `logs/menu-launches.jsonl` before invoking `run.ps1` |
 
 ---
