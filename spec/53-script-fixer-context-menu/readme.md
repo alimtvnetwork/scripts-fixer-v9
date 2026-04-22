@@ -402,22 +402,42 @@ Manual acceptance checklist (no automated harness — registry side effects):
 2. **Categories present**
    - "Databases" submenu lists every `install-<dbms>` script, sorted by ID.
    - Singleton categories appear at top level (e.g. one-off scripts), not as one-item submenus.
-3. **Leaf launch**
-   - Click a leaf → UAC prompt → terminal opens → `run.ps1 -I <id>` runs → terminal stays open after completion.
-4. **Refresh after edit**
+3. **Leaf launch (default, with countdown)** — v0.58.0+
+   - Click a leaf → UAC prompt → terminal opens → header banner appears with `Target` / `Repo` / `Command`.
+   - Countdown line "Auto-proceeding in 5s. Press Ctrl+C to cancel, any key to skip." prints.
+   - Wait through the full countdown → `run.ps1 -I <id>` runs → terminal stays open after completion.
+4. **Leaf launch (skip countdown)**
+   - Click a default leaf → press any key during the countdown → "Key pressed -- proceeding now." → script runs immediately.
+5. **Leaf launch (cancel countdown)**
+   - Click a default leaf → press Ctrl+C during the countdown → "Cancelled by user -- script NOT executed." → script does NOT run, terminal stays open with `-NoExit`.
+6. **Shift-bypass leaf is hidden by default**
+   - Right-click without holding Shift → only the default leaf for each script is visible (e.g. `52 -- vscode-folder-repair`).
+   - The `(no prompt -- Shift)` twin must NOT appear.
+7. **Shift-bypass leaf is revealed with Shift**
+   - Hold **SHIFT** and right-click → both leaves now appear under the same cascading parent (e.g. `52 -- vscode-folder-repair` and `52 -- vscode-folder-repair (no prompt -- Shift)`).
+   - Click the bypass leaf → UAC prompt → terminal opens → "Bypass mode -- proceeding immediately (no prompt)." → script runs without any countdown.
+8. **Bypass leaf registry shape**
+   - In `regedit`, navigate to any leaf's bypass twin (subkey ends in `-NoPrompt`) → confirm `Extended` value exists, type REG_SZ, value empty.
+   - Confirm the default twin does NOT have an `Extended` value.
+9. **Refresh after edit**
    - Add a fake script to `registry.json` (e.g. `"99": "99-test"`).
-   - Run `.\run.ps1 -I 53 refresh` → new entry appears.
-5. **Uninstall**
-   - Run `.\run.ps1 -I 53 uninstall`.
-   - Right-click everywhere → menu absent.
-   - `.installed/` + `.resolved/53-script-fixer-context-menu/` records removed.
-6. **Idempotency**
-   - Run `install` twice in a row → no errors, identical registry state.
-   - Run `uninstall` on a clean system → returns success, logs `wipeNothingToDo`.
-7. **Failure paths**
-   - Rename `version.json` → install logs warning + uses `vunknown`.
-   - Rename `registry.json` → install aborts with exact path in error.
-   - Run as non-admin → aborts with admin message.
+   - Run `.\run.ps1 -I 53 refresh` → both default leaf and bypass leaf appear for `99`.
+10. **Uninstall**
+    - Run `.\run.ps1 -I 53 uninstall`.
+    - Right-click everywhere (with and without Shift) → menu absent in both states.
+    - `.installed/` + `.resolved/53-script-fixer-context-menu/` records removed.
+11. **Idempotency**
+    - Run `install` twice in a row → no errors, identical registry state, both leaves intact under each script.
+    - Run `uninstall` on a clean system → returns success, logs `wipeNothingToDo`.
+12. **`emitBypassLeaves: false`**
+    - Edit `config.confirmBeforeLaunch.emitBypassLeaves` to `false` → run `refresh` → only default leaves are written; Shift+right-click reveals nothing extra.
+13. **`confirmBeforeLaunch.enabled: false` (legacy single-leaf mode)**
+    - Set `enabled: false` → run `refresh` → exactly one leaf per script, no countdown header, command line dispatches `run.ps1 -I <id>` directly.
+14. **Failure paths**
+    - Rename `version.json` → install logs warning + uses `vunknown`.
+    - Rename `registry.json` → install aborts with exact path in error.
+    - Run as non-admin → aborts with admin message.
+    - Delete `scripts/shared/confirm-launch.ps1` after install → click a default leaf → terminal opens, dot-source line errors out with the exact missing path (CODE RED rule satisfied), terminal stays open.
 
 ---
 
