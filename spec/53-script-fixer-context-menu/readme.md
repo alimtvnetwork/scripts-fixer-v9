@@ -182,24 +182,62 @@ And the `command` subkey:
 |-----------------|-------|----------------|
 | `<leaf>\command` | `(Default)` | See § 7.4 |
 
-### 7.4 Command line template
+### 7.4 Command line template (dual-leaf, v0.58.0+)
 
-`config.shell.commandTemplate` (default):
+As of **v0.58.0**, every script gets **two** leaves under the same cascading parent:
+
+1. **Default leaf** — runs through `scripts/shared/confirm-launch.ps1::Invoke-ConfirmedLaunch`, which shows a 5-second countdown (Ctrl+C cancels, any key proceeds immediately).
+2. **Bypass leaf** — same target, suffix `" (no prompt -- Shift)"`, carries the registry value `Extended=""` so Windows hides it unless the user holds **SHIFT** while right-clicking.
+
+Both templates live in `config.shell` and both ultimately call the shared helper:
 
 ```text
-"{shellExe}" -NoExit -ExecutionPolicy Bypass -Command "Set-Location -LiteralPath '{repoRoot}'; & '.\run.ps1' -I {scriptId}"
+# config.shell.commandTemplate (default leaf)
+"{shellExe}" -NoExit -ExecutionPolicy Bypass -Command ". '{repoRoot}\scripts\shared\confirm-launch.ps1'; Invoke-ConfirmedLaunch -RepoRoot '{repoRoot}' -ScriptId '{scriptId}' -ScriptLabel '{leafLabel}' -CountdownSeconds {countdown}"
+
+# config.shell.bypassCommandTemplate (Shift-only leaf -- adds -Bypass)
+"{shellExe}" -NoExit -ExecutionPolicy Bypass -Command ". '{repoRoot}\scripts\shared\confirm-launch.ps1'; Invoke-ConfirmedLaunch -RepoRoot '{repoRoot}' -ScriptId '{scriptId}' -ScriptLabel '{leafLabel}' -Bypass"
 ```
 
 Placeholders are substituted at install time:
 
-| Placeholder   | Source                                      |
-|---------------|----------------------------------------------|
-| `{shellExe}`  | Output of `Resolve-ShellExe` (absolute path) |
-| `{repoRoot}`  | Resolved at install time from `run.ps1`'s location (parent of `scripts/`) |
-| `{scriptId}`  | The numeric ID from `registry.json` (e.g. `52`) |
+| Placeholder    | Source                                                                  |
+|----------------|--------------------------------------------------------------------------|
+| `{shellExe}`   | Output of `Resolve-ShellExe` (absolute path)                             |
+| `{repoRoot}`   | Resolved at install time from `run.ps1`'s location (parent of `scripts/`)|
+| `{scriptId}`   | The numeric ID from `registry.json` (e.g. `52`)                          |
+| `{leafLabel}`  | `"NN -- pretty-folder-name"` -- shown in the helper's "Target:" header   |
+| `{countdown}`  | `config.confirmBeforeLaunch.countdownSeconds` (default `5`)              |
 
-Rationale for `-NoExit`: keeps the terminal open after the script finishes so
-the user can read output (success or failure).
+Rationale for `-NoExit`: keeps the terminal open after the script finishes (or after a cancel) so the user can read the output. Rationale for the dual-leaf shape: discoverability without ceremony — the safety net is the default, the power user holds Shift to skip it.
+
+#### 7.4.1 `confirmBeforeLaunch` config block
+
+```json
+"confirmBeforeLaunch": {
+  "enabled": true,
+  "countdownSeconds": 5,
+  "emitBypassLeaves": true,
+  "bypassLabelSuffix": " (no prompt -- Shift)",
+  "bypassSubkeySuffix": "-NoPrompt"
+}
+```
+
+| Key | Effect |
+|-----|--------|
+| `enabled` | Master switch. `false` -> single-leaf legacy mode (direct dispatcher call, no countdown). |
+| `countdownSeconds` | Seconds before auto-proceed in the default leaf. `<= 0` is treated as bypass. |
+| `emitBypassLeaves` | When `true`, each script gets a Shift-only twin. `false` -> only the default leaf is written. |
+| `bypassLabelSuffix` | Appended to the bypass leaf's visible label. |
+| `bypassSubkeySuffix` | Appended to the bypass leaf's registry subkey name (kept distinct so the two leaves never collide). |
+
+#### 7.4.2 Shift-to-reveal mechanism
+
+The bypass leaf is written with the registry value `Extended = ""` (REG_SZ, empty). Windows' classic context-menu code path hides any `shell\<verb>` entry carrying that value unless **SHIFT** is held during the right-click. No DLL, no shell extension -- pure registry behavior documented since Vista.
+
+#### 7.4.3 Reuse from other menus (script 54+)
+
+`Invoke-ConfirmedLaunch` (and its sibling `Invoke-ConfirmedCommand` for arbitrary, non-dispatcher commands) is the **single source of truth** for "ask first, then run" across every menu in this repo. Script 54 (VS Code menu installer) opts in via its own `confirmBeforeLaunch` block in `scripts/54-vscode-menu-installer/config.json` -- when `enabled: true`, every "Open with Code" leaf is wrapped in a pwsh call to `Invoke-ConfirmedCommand` with the configured countdown. Disabled by default (v0.59.0) to preserve direct-launch latency.
 
 ---
 
