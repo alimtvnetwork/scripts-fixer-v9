@@ -2,6 +2,14 @@
   "_comment": "VS Code context menu installer/uninstaller. The 'registryPaths' values per edition form the STRICT path allow-list used by uninstall.ps1 -- only these exact keys are deleted, never their siblings.",
   "enabled": true,
   "enabledEditions": ["stable", "insiders"],
+  "confirmBeforeLaunch": {
+    "_comment": "Optional: route every leaf through scripts/shared/confirm-launch.ps1 (same helper script 53 uses). When 'enabled' is true, the install writer wraps each commandTemplates.<target> in a pwsh call to Invoke-ConfirmedLaunch with the configured countdown. The VS Code exe ends up as the ExtraArgs payload so the helper invokes it after the countdown. Set 'enabled': false (default) to keep the current direct-launch behavior unchanged.",
+    "enabled": false,
+    "countdownSeconds": 5,
+    "shellPreferred": "pwsh",
+    "shellLegacyPath": "%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+    "wrapperTemplate": "\"{shellExe}\" -NoExit -ExecutionPolicy Bypass -Command \". '{repoRoot}\\scripts\\shared\\confirm-launch.ps1'; Invoke-ConfirmedLaunch -RepoRoot '{repoRoot}' -ScriptId '54' -ScriptLabel '{leafLabel}' -CountdownSeconds {countdown} -ExtraArgs @('--exec','{innerCommand}')"
+  },
   "editions": {
     "stable": {
       "label": "Open with Code",
