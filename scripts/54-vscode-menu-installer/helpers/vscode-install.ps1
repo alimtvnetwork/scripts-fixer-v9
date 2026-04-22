@@ -78,7 +78,7 @@ function Register-VsCodeMenuEntry {
     $rawCmd = $CommandTemplate -replace '\{exe\}', $VsCodeExe
     $cmdLine = $rawCmd
 
-    $isConfirmEnabled = ($null -ne $ConfirmCfg) -and ($ConfirmCfg.PSObject.Properties.Name -contains 'enabled') -and $ConfirmCfg.enabled
+    $isConfirmEnabled = ($null -ne $ConfirMCfg) -and ($ConfirmCfg.PSObject.Properties.Name -contains 'enabled') -and $ConfirmCfg.enabled
     if ($isConfirmEnabled) {
         $shellExe = Resolve-ConfirmShellExe -Preferred $ConfirmCfg.shellPreferred -LegacyPath $ConfirmCfg.shellLegacyPath
         $isShellMissing = -not $shellExe
@@ -86,14 +86,14 @@ function Register-VsCodeMenuEntry {
             Write-Log ("confirmBeforeLaunch enabled but no PowerShell exe resolved -- falling back to direct launch for: " + $RegistryPath) -Level "warn"
         } else {
             $leafLabel = "$Label ($TargetName)"
+            # Escape single quotes for safe embedding inside a PS single-quoted string literal
+            $innerEscaped = $rawCmd.Replace("'", "''")
             $wrapped = $ConfirmCfg.wrapperTemplate
-            $wrapped = $wrapped -replace '\{shellExe\}',     [Regex]::Escape($shellExe).Replace('\','\\')
-            $wrapped = $wrapped -replace '\{repoRoot\}',     [Regex]::Escape($RepoRoot).Replace('\','\\')
-            $wrapped = $wrapped -replace '\{leafLabel\}',    $leafLabel
-            $wrapped = $wrapped -replace '\{countdown\}',    [string]$ConfirmCfg.countdownSeconds
-            $wrapped = $wrapped -replace '\{innerCommand\}', ($rawCmd -replace "'", "''")
-            # Undo the escape doubling -- we only escaped to satisfy the regex replacement engine
-            $wrapped = $wrapped -replace '\\\\', '\'
+            $wrapped = $wrapped.Replace('{shellExe}',     $shellExe)
+            $wrapped = $wrapped.Replace('{repoRoot}',     $RepoRoot)
+            $wrapped = $wrapped.Replace('{leafLabel}',    $leafLabel)
+            $wrapped = $wrapped.Replace('{countdown}',    [string]$ConfirmCfg.countdownSeconds)
+            $wrapped = $wrapped.Replace('{innerCommand}', $innerEscaped)
             $cmdLine = $wrapped
         }
     }
